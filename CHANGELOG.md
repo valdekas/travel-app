@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-06-21 (Visited Countries — Continents counter includes partial visits)
+
+### Fixed — `components/visited/visited-countries-content.tsx`
+
+**Bug:** The "Continents" summary stat only counted continents containing at least one *fully* visited country, ignoring continents where countries were only *partially* visited (e.g. a US state selected makes Americas "partial").
+
+With Europe having fully/partially visited countries and Americas having one partial country (via a state), the counter showed **1** instead of **2**.
+
+**Root cause:** `continentsVisited` was computed from `visited` (fully visited) only, before `partialCountries` was even defined. The per-continent breakdown cards already correctly counted both full and partial via `visited.has(c.code) || partialCountries.has(c.code)`, but the summary stat did not.
+
+**Fix:** Moved `continentsVisited` after `partialCountries` and extended it to also iterate `partialCountries`, looking up each country's continent from `COUNTRIES`. Both the summary stat and the header subtitle now count a continent as visited if it has any full or partial country.
+
+---
+
+## 2026-06-20 (Dashboard Achievements — Data Source Fix)
+
+### Fixed — `components/dashboard/achievements-widget.tsx`, `lib/utils/achievements.ts`
+
+**Bug:** Dashboard Achievements widget showed different/incorrect achievements vs the Visited Countries page.
+
+With 4 countries visited, the Dashboard showed **3 badges** ("First Trip", "Passport Stamped", "Globetrotter") while the Visited Countries page correctly showed **1 badge** ("First Stamp").
+
+**Root cause:** The widget had its own independent `buildAchievements()` function with a completely different tier system:
+- "Globetrotter" threshold = 3 countries (Dashboard) vs 25 countries (Visited Countries) — same name, wildly different meaning
+- Widget included trip-count badges ("First Trip", "3 Trips", "Adventure Complete") absent from the canonical system
+
+**Fix:**
+- Extracted the canonical `ACHIEVEMENTS` array to `lib/utils/achievements.ts` (single source of truth)
+- `achievements-widget.tsx` now imports from the shared file; drops the `buildAchievements()` function and all unused props (`tripsTotal`, `completedTrips`, `continentsVisited`)
+- `visited-countries-content.tsx` imports the same shared constant, removing its inline definition
+- `dashboard-content.tsx` updated to pass only `countriesVisited` to the widget
+
+**Result:** Both pages now show identical achievement data — 1 badge ("First Stamp 🛂") for a user with 4 countries visited.
+
+---
+
 ## 2026-06-20 (Budget % Consistency Fix)
 
 ### Fixed — `components/trips/trip-overview-content.tsx`, `components/dashboard/trip-insights-card.tsx`
