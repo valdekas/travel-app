@@ -1,6 +1,6 @@
 # 📋 Travel Planner – TODO
 
-Last Updated: 2026-06-19
+Last Updated: 2026-06-20
 
 ---
 
@@ -164,4 +164,5 @@ Ideas that should NOT be implemented yet.
 * [x] Dashboard Travel Map legend (Partly visited label, tooltips)
 * [x] Dashboard Polish – Phase 2 (travel quotes constants, quick actions, recent trips)
 * [x] Dashboard Polish – Phase 3 (Travel Insights): Travel Statistics card, Trip Readiness widget, Next Trip Insights card, Recent Activity widget, Achievements section, improved empty states
+* [x] Budget % consistency fix — standardised spent/total_budget formula across Dashboard Insights, Overview card, and Budget tab
 * [x] Visited Countries – Improve system: flag-forward cards, continent on all cards, "Regions • States • Islands" label, Greece/Portugal islands, Spain/Italy island details

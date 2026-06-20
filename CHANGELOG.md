@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-06-20 (Budget % Consistency Fix)
+
+### Fixed — `components/trips/trip-overview-content.tsx`, `components/dashboard/trip-insights-card.tsx`
+
+**Bug:** "Budget Used %" was calculated with two different (wrong) formulas outside the Budget tab.
+
+| Location | Old formula | Old result (Chicago: $1,600 spent, $1,500 planned, $3,000 budget) | New result |
+|---|---|---|---|
+| Budget tab | `spent / trip.budget` | **53%** ✓ | 53% (unchanged) |
+| Overview card | `spent / sum(planned_amounts)` + `Math.min(100)` cap | **100%** ✗ | **53%** ✓ |
+| Dashboard Insights | `spent / sum(planned_amounts)` (no cap) | **107%** ✗ | **53%** ✓ |
+
+**Root cause — Overview card** (`trip-overview-content.tsx:29`):
+- Was: `const budgetPct = totalBudgeted > 0 ? Math.min(100, Math.round((totalSpent / totalBudgeted) * 100)) : 0`
+- `totalBudgeted` = sum of `planned_amount` from budget_items ($1,500), not the trip's set budget
+- `Math.min(100, …)` cap hid the overrun (107% → 100%), making 100% look intentional
+
+**Root cause — Dashboard Insights** (`trip-insights-card.tsx:34`):
+- Was: `const budgetPct = budgetPlanned > 0 ? Math.round((budgetActual / budgetPlanned) * 100) : null`
+- `budgetPlanned` prop = same sum of planned_amounts ($1,500), no cap, so showed raw 107%
+
+**Fix (2 lines changed):**
+- `trip-overview-content.tsx`: denominator changed to `trip.budget || totalBudgeted`; removed `Math.min` from `budgetPct`; progress bar uses `Math.min(budgetPct, 100)` (visual-only cap)
+- `trip-insights-card.tsx`: denominator changed to `trip.budget || budgetPlanned`; `trip` was already a prop on the component
+
+---
+
 ## 2026-06-20 (Journal — Linked Place Save Bug Fixed)
 
 ### Fixed — `components/journal/journal-content.tsx`, `app/(dashboard)/trips/[id]/journal/page.tsx`
