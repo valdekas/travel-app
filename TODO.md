@@ -167,4 +167,5 @@ Ideas that should NOT be implemented yet.
 * [x] Budget % consistency fix — standardised spent/total_budget formula across Dashboard Insights, Overview card, and Budget tab
 * [x] Dashboard Achievements data source fix — unified with Visited Countries canonical tier system via shared lib/utils/achievements.ts
 * [x] Visited Countries — Continents counter now includes partial visits (continent counts if any country is full or partial)
+* [x] My Travel Map — header subtitle and stats bar both use visited continent count (full+partial), stats bar relabeled "Continents Visited"
 * [x] Visited Countries – Improve system: flag-forward cards, continent on all cards, "Regions • States • Islands" label, Greece/Portugal islands, Spain/Italy island details

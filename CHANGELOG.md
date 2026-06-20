@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-06-21 (My Travel Map — continent count consistency fix)
+
+### Fixed — `components/dashboard/world-map-widget.tsx`
+
+**Bug:** Header subtitle "X countries visited · Y upcoming trips · Z continents explored" showed 1 continent, while the stats bar "CONTINENTS" cell showed 2. Both numbers were wrong for different reasons:
+
+- Header used `countContinents(visitedCodes)` — fully-visited countries only, missing partial visits (e.g. Americas via a US state)
+- Stats bar used `continentsPlanned` (continents of planned/upcoming trips) — a completely different metric that happened to coincide at 2, not a "visited" stat at all
+
+**Fix:**
+1. `stats.continentsVisited` now unions `visitedCodes` with `partiallyCodes` before counting — same logic as the Visited Countries page fix
+2. `continentsPlanned` removed from stats entirely — it was unused visually (the stats bar was already referencing it by mistake) and added noise
+3. Stats bar "Continents" cell changed to use `stats.continentsVisited` and relabeled **"Continents Visited"** — unambiguous, consistent with header subtitle and page theme
+
+**Result:** Header subtitle and stats bar both show 2, both reflecting the same full+partial visited logic.
+
+---
+
 ## 2026-06-21 (Visited Countries — Continents counter includes partial visits)
 
 ### Fixed — `components/visited/visited-countries-content.tsx`
