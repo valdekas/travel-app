@@ -13,12 +13,24 @@ export default async function TripJournalPage({ params }: Props) {
   if (!user) redirect('/auth/login')
 
   const [{ data: trip }, { data: entries }, { data: locations }] = await Promise.all([
-    supabase.from('trips').select('id, name').eq('id', id).eq('user_id', user.id).single(),
-    supabase.from('journal_entries').select('*').eq('trip_id', id).order('date', { ascending: false }),
-    supabase.from('locations').select('id, name').eq('trip_id', id).order('name'),
+    supabase.from('trips').select('id, name, start_date, country, city').eq('id', id).eq('user_id', user.id).single(),
+    supabase.from('journal_entries').select('*').eq('trip_id', id).order('date', { ascending: true }).order('created_at', { ascending: true }),
+    supabase.from('locations').select('id, name, google_maps_link, address').eq('trip_id', id).order('name'),
   ])
 
   if (!trip) notFound()
 
-  return <JournalContent tripId={id} userId={user.id} initialEntries={entries ?? []} locations={locations ?? []} />
+  const tripCountry = [trip.city, trip.country].filter(Boolean).join(', ')
+
+  return (
+    <JournalContent
+      tripId={id}
+      userId={user.id}
+      tripName={trip.name}
+      tripCountry={tripCountry}
+      tripStartDate={trip.start_date ?? null}
+      initialEntries={entries ?? []}
+      locations={locations ?? []}
+    />
+  )
 }

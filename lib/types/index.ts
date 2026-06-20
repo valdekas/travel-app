@@ -1,9 +1,11 @@
 export type TripStatus = 'planning' | 'upcoming' | 'active' | 'completed' | 'cancelled'
-export type Priority = 'low' | 'medium' | 'high'
 export type LocationType = 'region' | 'city' | 'attraction' | 'restaurant' | 'beach' | 'viewpoint' | 'hotel' | 'activity' | 'transport' | 'other'
 export type ChecklistCategory = 'documents' | 'packing' | 'custom'
 export type BudgetCategory = 'flights' | 'hotels' | 'food' | 'activities' | 'transport' | 'shopping' | 'other'
-export type ItineraryItemType = 'flight' | 'transport' | 'checkin' | 'checkout' | 'meal' | 'activity' | 'tour' | 'event' | 'rest' | 'other'
+export type ItineraryItemType =
+  | 'flight' | 'hotel' | 'restaurant' | 'attraction' | 'beach' | 'viewpoint'
+  | 'transport' | 'car_rental' | 'tour' | 'shopping' | 'activity' | 'event' | 'rest' | 'other'
+  | 'checkin' | 'checkout' | 'meal' // kept for backward compat with existing rows
 export type Mood = 'amazing' | 'great' | 'good' | 'okay' | 'bad'
 export type PlaceType = 'attraction' | 'restaurant' | 'beach' | 'viewpoint' | 'hotel' | 'activity' | 'city' | 'region' | 'other'
 
@@ -13,6 +15,10 @@ export interface Trip {
   name: string
   country: string
   country_code?: string
+  city?: string
+  region?: string
+  lat?: number
+  lng?: number
   start_date?: string
   end_date?: string
   budget: number
@@ -41,7 +47,6 @@ export interface Location {
   notes?: string
   estimated_visit_time?: number
   estimated_cost: number
-  priority: Priority
   visited: boolean
   google_maps_link?: string
   lat?: number
@@ -50,7 +55,6 @@ export interface Location {
   order_index: number
   created_at: string
   updated_at: string
-  children?: Location[]
 }
 
 export interface ChecklistItem {
@@ -59,7 +63,6 @@ export interface ChecklistItem {
   category: ChecklistCategory
   title: string
   completed: boolean
-  priority: Priority
   due_date?: string
   notes?: string
   order_index: number
@@ -92,6 +95,16 @@ export interface ItineraryItem {
   confirmation_number?: string
   notes?: string
   order_index: number
+  // Google Places location fields (from migration 005)
+  location_name?: string
+  formatted_address?: string
+  city?: string
+  region?: string
+  country?: string
+  latitude?: number | null
+  longitude?: number | null
+  google_place_id?: string
+  google_maps_url?: string
   created_at: string
   updated_at: string
   location?: Location
@@ -117,12 +130,15 @@ export interface JournalEntry {
   trip_id: string
   user_id: string
   date?: string
+  time?: string | null
   title?: string
   content?: string
   photos: string[]
   mood?: Mood
   weather?: string
-  location_id?: string
+  location_id?: string | null
+  linked_to_trip?: boolean
+  is_favorite?: boolean
   created_at: string
   updated_at: string
   location?: Location
@@ -139,12 +155,44 @@ export interface WishlistItem {
   place_type: PlaceType
   description?: string
   notes?: string
-  priority: Priority
   google_maps_link?: string
   lat?: number
   lng?: number
   estimated_cost?: number
   converted_to_trip_id?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface VisitedCountry {
+  id: string
+  user_id: string
+  country_code: string
+  country_name: string
+  continent: string
+  region?: string
+  visit_count: number
+  first_visit_date?: string
+  last_visit_date?: string
+  notes?: string
+  favorite_city?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface VisitedRegion {
+  id: string
+  user_id: string
+  country_code: string
+  country_name: string
+  region_code: string
+  region_name: string
+  region_type: string
+  first_visit_date?: string
+  last_visit_date?: string
+  visit_count: number
+  notes?: string
+  favorite_city?: string
   created_at: string
   updated_at: string
 }
@@ -207,22 +255,78 @@ export const LOCATION_TYPE_ICONS: Record<LocationType, string> = {
 }
 
 export const ITINERARY_TYPE_ICONS: Record<ItineraryItemType, string> = {
-  flight: '✈️',
-  transport: '🚗',
-  checkin: '🏨',
-  checkout: '🏁',
-  meal: '🍽️',
-  activity: '🎯',
-  tour: '🗺️',
-  event: '🎪',
-  rest: '😴',
-  other: '📌',
+  flight:      '✈️',
+  hotel:       '🏨',
+  restaurant:  '🍽️',
+  attraction:  '🎯',
+  beach:       '🏖️',
+  viewpoint:   '🏔️',
+  transport:   '🚗',
+  car_rental:  '🚙',
+  tour:        '🗺️',
+  shopping:    '🛍️',
+  activity:    '⚡',
+  event:       '🎪',
+  rest:        '😴',
+  other:       '📌',
+  // legacy
+  checkin:     '🏨',
+  checkout:    '🏁',
+  meal:        '🍽️',
+}
+
+export interface UserSettings {
+  id: string
+  user_id: string
+  trip_reminders: boolean
+  checklist_reminders: boolean
+  budget_alerts: boolean
+  journal_reminders: boolean
+  email_notifications: boolean
+  push_notifications: boolean
+  theme: string
+  accent_color: string
+  compact_mode: boolean
+  animations_enabled: boolean
+  language: string
+  timezone: string
+  currency: string
+  private_account: boolean
+  hide_profile: boolean
+  created_at: string
+  updated_at: string
+}
+
+export const DEFAULT_USER_SETTINGS: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at'> = {
+  trip_reminders: true,
+  checklist_reminders: true,
+  budget_alerts: true,
+  journal_reminders: false,
+  email_notifications: true,
+  push_notifications: false,
+  theme: 'system',
+  accent_color: 'indigo',
+  compact_mode: false,
+  animations_enabled: true,
+  language: 'en',
+  timezone: 'UTC',
+  currency: 'USD',
+  private_account: false,
+  hide_profile: false,
 }
 
 export const MOOD_EMOJIS: Record<Mood, string> = {
-  amazing: '🤩',
-  great: '😄',
-  good: '😊',
+  amazing: '😊',
+  great: '😍',
+  good: '😌',
   okay: '😐',
-  bad: '😞',
+  bad: '😴',
+}
+
+export const MOOD_LABELS: Record<Mood, string> = {
+  amazing: 'Amazing',
+  great: 'Loved it',
+  good:  'Relaxing',
+  okay:  'Okay',
+  bad:   'Tiring',
 }
