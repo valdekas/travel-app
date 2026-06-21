@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { Trip, Location, WishlistItem, LOCATION_TYPE_ICONS } from '@/lib/types'
-import { getTripStatusColor, getPriorityColor, formatDate } from '@/lib/utils'
+import { getTripStatusColor, formatDate } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -20,7 +20,6 @@ interface SearchContentProps {
 export function SearchContent({ trips, locations, wishlist }: SearchContentProps) {
   const [query, setQuery] = useState('')
   const [tripStatusFilter, setTripStatusFilter] = useState('all')
-  const [priorityFilter, setPriorityFilter] = useState('all')
   const [locTypeFilter, setLocTypeFilter] = useState('all')
 
   const q = query.toLowerCase()
@@ -33,16 +32,14 @@ export function SearchContent({ trips, locations, wishlist }: SearchContentProps
 
   const filteredLocations = useMemo(() => locations.filter(l => {
     const matchQ = !q || [l.name, l.description, l.address].some(s => s?.toLowerCase().includes(q))
-    const matchPriority = priorityFilter === 'all' || l.priority === priorityFilter
     const matchType = locTypeFilter === 'all' || l.type === locTypeFilter
-    return matchQ && matchPriority && matchType
-  }), [locations, q, priorityFilter, locTypeFilter])
+    return matchQ && matchType
+  }), [locations, q, locTypeFilter])
 
   const filteredWishlist = useMemo(() => wishlist.filter(w => {
     const matchQ = !q || [w.place_name, w.country, w.city, w.region, w.description].some(s => s?.toLowerCase().includes(q))
-    const matchPriority = priorityFilter === 'all' || w.priority === priorityFilter
-    return matchQ && matchPriority
-  }), [wishlist, q, priorityFilter])
+    return matchQ
+  }), [wishlist, q])
 
   const totalResults = filteredTrips.length + filteredLocations.length + filteredWishlist.length
 
@@ -91,15 +88,6 @@ export function SearchContent({ trips, locations, wishlist }: SearchContentProps
                 ))}
               </SelectContent>
             </Select>
-            <Select value={priorityFilter} onValueChange={v => setPriorityFilter(v ?? 'all')}>
-              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Priority" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Priority</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </div>
 
@@ -140,7 +128,6 @@ export function SearchContent({ trips, locations, wishlist }: SearchContentProps
                           {l.description && <span className="text-muted-foreground text-xs ml-2">— {l.description}</span>}
                         </div>
                         <Badge variant="outline" className="text-xs capitalize">{l.type}</Badge>
-                        <span className={`text-xs ${getPriorityColor(l.priority)}`}>{l.priority}</span>
                       </CardContent>
                     </Card>
                   </Link>
@@ -163,7 +150,6 @@ export function SearchContent({ trips, locations, wishlist }: SearchContentProps
                           {w.city && <span className="text-muted-foreground text-xs">, {w.city}</span>}
                         </div>
                         <Badge variant="outline" className="text-xs capitalize">{w.place_type}</Badge>
-                        <span className={`text-xs ${getPriorityColor(w.priority)}`}>{w.priority}</span>
                       </CardContent>
                     </Card>
                   </Link>
@@ -250,7 +236,6 @@ export function SearchContent({ trips, locations, wishlist }: SearchContentProps
                       <p className="text-xs text-muted-foreground">{[w.city, w.region, w.country].filter(Boolean).join(', ')}</p>
                     </div>
                     <Badge variant="outline" className="text-xs">{w.place_type}</Badge>
-                    <span className={`text-xs ${getPriorityColor(w.priority)}`}>{w.priority}</span>
                   </CardContent>
                 </Card>
               </Link>

@@ -30,7 +30,7 @@ export default async function TripOverviewPage({ params }: Props) {
 
   return (
     <TripOverviewContent
-      trip={trip}
+      trip={trip!}
       checklist={checklist ?? []}
       locations={locations ?? []}
       budgetItems={budgetItems ?? []}

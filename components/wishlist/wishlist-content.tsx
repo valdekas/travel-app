@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { WishlistItem, PlaceType, Priority, LOCATION_TYPE_ICONS, CURRENCY_OPTIONS } from '@/lib/types'
-import { getPriorityColor } from '@/lib/utils'
+import { WishlistItem, PlaceType, LOCATION_TYPE_ICONS, CURRENCY_OPTIONS } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,9 +12,16 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
-import { Plus, Star, ExternalLink, Trash2, MapPin, Loader2, Search, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { Plus, Star, ExternalLink, Trash2, MapPin, Loader2, Search, ArrowRight, CheckCircle2, MoreVertical } from 'lucide-react'
+import { PlacesAutocomplete } from '@/components/ui/places-autocomplete'
+import { CountrySelect } from '@/components/ui/country-select'
+import { getCountryByName } from '@/lib/data/countries'
 
 const PLACE_TYPES: { value: PlaceType; label: string }[] = [
   { value: 'attraction', label: 'Attraction' },
@@ -29,24 +35,8 @@ const PLACE_TYPES: { value: PlaceType; label: string }[] = [
   { value: 'other', label: 'Other' },
 ]
 
-const POPULAR_COUNTRIES = [
-  { code: 'IT', name: 'Italy' }, { code: 'FR', name: 'France' }, { code: 'ES', name: 'Spain' },
-  { code: 'JP', name: 'Japan' }, { code: 'US', name: 'United States' }, { code: 'GB', name: 'United Kingdom' },
-  { code: 'GR', name: 'Greece' }, { code: 'TH', name: 'Thailand' }, { code: 'PT', name: 'Portugal' },
-  { code: 'HR', name: 'Croatia' }, { code: 'TR', name: 'Turkey' }, { code: 'MX', name: 'Mexico' },
-  { code: 'AU', name: 'Australia' }, { code: 'DE', name: 'Germany' }, { code: 'NL', name: 'Netherlands' },
-  { code: 'CH', name: 'Switzerland' }, { code: 'AT', name: 'Austria' }, { code: 'CZ', name: 'Czech Republic' },
-  { code: 'PL', name: 'Poland' }, { code: 'HU', name: 'Hungary' }, { code: 'NO', name: 'Norway' },
-  { code: 'SE', name: 'Sweden' }, { code: 'DK', name: 'Denmark' }, { code: 'FI', name: 'Finland' },
-  { code: 'ID', name: 'Indonesia' }, { code: 'VN', name: 'Vietnam' }, { code: 'IN', name: 'India' },
-  { code: 'MA', name: 'Morocco' }, { code: 'EG', name: 'Egypt' }, { code: 'ZA', name: 'South Africa' },
-  { code: 'BR', name: 'Brazil' }, { code: 'AR', name: 'Argentina' }, { code: 'PE', name: 'Peru' },
-  { code: 'CL', name: 'Chile' }, { code: 'CO', name: 'Colombia' }, { code: 'CA', name: 'Canada' },
-  { code: 'NZ', name: 'New Zealand' }, { code: 'SG', name: 'Singapore' }, { code: 'KR', name: 'South Korea' },
-]
-
 function getCountryCode(countryName: string): string {
-  return POPULAR_COUNTRIES.find(c => c.name.toLowerCase() === countryName.toLowerCase())?.code ?? ''
+  return getCountryByName(countryName)?.code ?? ''
 }
 
 interface WishlistContentProps {
@@ -64,12 +54,12 @@ export function WishlistContent({ userId, initialItems }: WishlistContentProps) 
   const supabase = createClient()
 
   const [form, setForm] = useState({
-    country: '', region: '', city: '', place_name: '',
+    country: '', country_code: '', region: '', city: '', place_name: '',
     place_type: 'attraction' as PlaceType,
-    priority: 'medium' as Priority,
     description: '', notes: '', google_maps_link: '',
   })
   const set = (k: string, v: string | null) => setForm(f => ({ ...f, [k]: v ?? '' }))
+  const coordsRef = useRef<{ lat: number | null; lng: number | null }>({ lat: null, lng: null })
 
   // Convert-to-trip dialog state
   const [convertItem, setConvertItem] = useState<WishlistItem | null>(null)
@@ -179,18 +169,21 @@ export function WishlistContent({ userId, initialItems }: WishlistContentProps) 
       const { data, error } = await supabase.from('wishlist_items').insert({
         user_id: userId,
         country: form.country,
+        country_code: form.country_code || null,
         region: form.region || null,
         city: form.city || null,
         place_name: form.place_name,
         place_type: form.place_type,
-        priority: form.priority,
         description: form.description || null,
         notes: form.notes || null,
         google_maps_link: form.google_maps_link || null,
+        lat: coordsRef.current.lat,
+        lng: coordsRef.current.lng,
       }).select().single()
       if (error) throw error
       setItems(prev => [data, ...prev])
-      setForm({ country: '', region: '', city: '', place_name: '', place_type: 'attraction', priority: 'medium', description: '', notes: '', google_maps_link: '' })
+      setForm({ country: '', country_code: '', region: '', city: '', place_name: '', place_type: 'attraction', description: '', notes: '', google_maps_link: '' })
+      coordsRef.current = { lat: null, lng: null }
       setAddOpen(false)
       toast.success('Added to wishlist!')
     } catch (err: unknown) {
@@ -264,7 +257,6 @@ export function WishlistContent({ userId, initialItems }: WishlistContentProps) 
                           )}
                           <div className="flex items-center gap-2 mt-2 flex-wrap">
                             <Badge variant="outline" className="text-xs capitalize">{item.place_type}</Badge>
-                            <span className={`text-xs font-medium ${getPriorityColor(item.priority)}`}>{item.priority}</span>
                           </div>
                           {item.description && (
                             <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{item.description}</p>
@@ -302,14 +294,45 @@ export function WishlistContent({ userId, initialItems }: WishlistContentProps) 
                             )}
                           </div>
                         </div>
+                        {/* Desktop: hover-revealed delete */}
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 opacity-0 group-hover:opacity-100 flex-shrink-0 text-destructive hover:bg-destructive/10"
-                          onClick={() => deleteItem(item.id)}
+                          className="hidden md:inline-flex h-6 w-6 opacity-0 group-hover:opacity-100 flex-shrink-0 text-destructive hover:bg-destructive/10"
+                          onClick={() => { if (confirm('Remove from wishlist?')) deleteItem(item.id) }}
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
+
+                        {/* Mobile: three-dot overflow menu */}
+                        <div className="flex md:hidden flex-shrink-0">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger render={
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" aria-label="More options">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            } />
+                            <DropdownMenuContent align="end" className="min-w-44">
+                              {item.google_maps_link ? (
+                                <DropdownMenuItem onClick={() => window.open(item.google_maps_link!, '_blank', 'noopener,noreferrer')}>
+                                  <ExternalLink className="h-4 w-4" />
+                                  Open in Maps
+                                </DropdownMenuItem>
+                              ) : null}
+                              {!item.converted_to_trip_id ? (
+                                <DropdownMenuItem onClick={() => openConvert(item)}>
+                                  <ArrowRight className="h-4 w-4" />
+                                  Convert to Trip
+                                </DropdownMenuItem>
+                              ) : null}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem variant="destructive" onClick={() => { if (confirm('Remove from wishlist?')) deleteItem(item.id) }}>
+                                <Trash2 className="h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -329,12 +352,29 @@ export function WishlistContent({ userId, initialItems }: WishlistContentProps) 
           <div className="space-y-4 mt-2">
             <div className="space-y-1.5">
               <Label>Place Name *</Label>
-              <Input placeholder="Staubbach Falls, Shibuya Crossing…" value={form.place_name} onChange={e => set('place_name', e.target.value)} />
+              <PlacesAutocomplete
+                value={form.place_name}
+                onChange={v => set('place_name', v)}
+                onPlaceSelect={p => {
+                  set('place_name', p.name)
+                  if (p.country) set('country', p.country)
+                  if (p.countryCode) set('country_code', p.countryCode)
+                  if (p.region) set('region', p.region)
+                  if (p.city) set('city', p.city)
+                  set('google_maps_link', p.googleMapsLink)
+                  coordsRef.current = { lat: p.lat, lng: p.lng }
+                }}
+                placeholder="Search for a place…"
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Country *</Label>
-                <Input placeholder="Switzerland" value={form.country} onChange={e => set('country', e.target.value)} />
+                <CountrySelect
+                  value={form.country_code}
+                  onSelect={c => { set('country', c.name); set('country_code', c.code) }}
+                  placeholder="Select country"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Region</Label>
@@ -355,17 +395,6 @@ export function WishlistContent({ userId, initialItems }: WishlistContentProps) 
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Priority</Label>
-              <Select value={form.priority} onValueChange={v => set('priority', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="high">🔴 High</SelectItem>
-                  <SelectItem value="medium">🟡 Medium</SelectItem>
-                  <SelectItem value="low">🟢 Low</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Description</Label>
@@ -408,30 +437,11 @@ export function WishlistContent({ userId, initialItems }: WishlistContentProps) 
               </div>
               <div className="space-y-1.5">
                 <Label>Country *</Label>
-                <Select
+                <CountrySelect
                   value={convertForm.country_code}
-                  onValueChange={v => {
-                    const found = POPULAR_COUNTRIES.find(c => c.code === v)
-                    setC('country_code', v)
-                    if (found) setC('country', found.name)
-                  }}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select country" /></SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {POPULAR_COUNTRIES.sort((a, b) => a.name.localeCompare(b.name)).map(c => (
-                      <SelectItem key={c.code} value={c.code}>
-                        {String.fromCodePoint(...c.code.toUpperCase().split('').map(ch => 127397 + ch.charCodeAt(0)))} {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!convertForm.country_code && (
-                  <Input
-                    placeholder="Or type country name"
-                    value={convertForm.country}
-                    onChange={e => setC('country', e.target.value)}
-                  />
-                )}
+                  onSelect={c => { setC('country_code', c.code); setC('country', c.name) }}
+                  placeholder="Select country"
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
