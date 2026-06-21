@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-06-21 (Itinerary — day collapse/expand + day completed toggle)
+
+### Added — `components/itinerary/itinerary-content.tsx`, `lib/types/index.ts`, `supabase/migrations/012_itinerary_day_completed.sql`
+
+**Task 1 — Collapse/expand per day (UI-only)**
+- Clicking anywhere on the day header card toggles its activity list open/closed
+- All days start expanded by default
+- `ChevronDown` indicator rotates 90° when collapsed; explicit chevron `Button` in the right-side cluster also toggles (so both the header area and the explicit button work)
+- Header background subtly highlights on hover; `collapsed` is local `useState` — no DB column needed
+
+**Task 2 — Day completed toggle (persisted)**
+- Added `is_completed BOOLEAN NOT NULL DEFAULT FALSE` column to `itinerary_days` via migration `012_itinerary_day_completed.sql` (applied)
+- `CheckCircle2` icon button in day header right-side cluster toggles completed state
+- Completed visual treatment: emerald header background, emerald day-number circle, dimmed title/date text
+- Optimistic UI: state updates immediately; reverts + shows toast on DB error
+- `toggleDayComplete()` async function handles Supabase UPDATE with rollback on error
+
+**Mobile touch targets:**
+- All three right-side icon buttons (complete, chevron, delete) use `h-10 w-10 md:h-7 md:w-7` — 40px on mobile, 28px on desktop
+- Right-side div uses `flex-shrink-0` and `gap-1`; left side has `min-w-0` + `truncate` on title
+- `onClick={e => e.stopPropagation()}` on right-side wrapper isolates button taps from header collapse
+
+---
+
 ## 2026-06-21 (Itinerary — chronological insert for new activities)
 
 ### Fixed — `components/itinerary/itinerary-content.tsx`

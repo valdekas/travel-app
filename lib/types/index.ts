@@ -78,6 +78,7 @@ export interface ItineraryDay {
   day_number?: number
   title?: string
   notes?: string
+  is_completed: boolean
   created_at: string
   items?: ItineraryItem[]
 }

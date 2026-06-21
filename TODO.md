@@ -60,6 +60,8 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [x] Mobile DnD discoverability — handle always visible on mobile, DragHint banner (once per device)
 * [x] Activity detail expand — click card body to expand full description/address; chevron indicator; inline Edit + Maps shortcuts; `line-clamp-2` compact preview; full text on mobile (no truncation when expanded)
 * [x] Chronological insert — new activities with a start_time slot into the correct position by time instead of always appending; DnD manual order unaffected
+* [x] Day collapse/expand — click day header to toggle activity list; all start expanded; chevron rotates; UI-only, no DB
+* [x] Day completed toggle — `CheckCircle2` button marks day done; emerald header + circle + dimmed text; persisted to `itinerary_days.is_completed`; optimistic UI with rollback; 44px touch targets on mobile
 * [ ] Travel time between activities
 * [ ] Activity photos
 * [ ] Timeline polish

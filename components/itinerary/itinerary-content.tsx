@@ -31,7 +31,7 @@ import { DragHint } from '@/components/shared/drag-hint'
 import { toast } from 'sonner'
 import {
   Plus, Calendar, Trash2, Loader2, MapPin,
-  ExternalLink, Pencil, Clock, GripVertical, MoreVertical, ChevronDown,
+  ExternalLink, Pencil, Clock, GripVertical, MoreVertical, ChevronDown, CheckCircle2,
 } from 'lucide-react'
 import { parseISO, addDays, format } from 'date-fns'
 import { cn } from '@/lib/utils'
@@ -410,42 +410,102 @@ interface DayListProps {
   onEdit: (item: ItineraryItem) => void
   onDelete: (dayId: string, itemId: string) => void
   onDeleteDay: (dayId: string) => void
+  onToggleComplete: (dayId: string) => void
   dayIndex: number
   sensors: ReturnType<typeof useSensors>
 }
 
 function DayCard({
   day, currency, onDragStart, onDragEnd, onDragCancel,
-  activeItem, onOpenAdd, onEdit, onDelete, onDeleteDay, dayIndex, sensors,
+  activeItem, onOpenAdd, onEdit, onDelete, onDeleteDay, onToggleComplete, dayIndex, sensors,
 }: DayListProps) {
+  const [collapsed, setCollapsed] = useState(false)
+  const isCompleted = day.is_completed ?? false
   const sorted = byOrderIndex(day.items ?? [])
   const itemIds = sorted.map(i => i.id)
 
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="pb-3 bg-muted/20">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-bold text-sm flex-shrink-0">
+      {/* Clicking the header area (left/title side) toggles collapse.
+          The right-side button group stops propagation so each icon is independent. */}
+      <CardHeader
+        className={cn(
+          'pb-3 cursor-pointer select-none transition-colors',
+          isCompleted
+            ? 'bg-emerald-50/60 hover:bg-emerald-50/80 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/30'
+            : 'bg-muted/20 hover:bg-muted/30',
+        )}
+        onClick={() => setCollapsed(v => !v)}
+      >
+        <div className="flex items-center justify-between gap-2">
+
+          {/* Left: day number circle + title/date (min-w-0 allows shrinking on narrow screens) */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={cn(
+              'w-10 h-10 rounded-xl flex items-center justify-center text-primary-foreground font-bold text-sm flex-shrink-0 transition-colors',
+              isCompleted ? 'bg-emerald-500' : 'bg-primary',
+            )}>
               {dayIndex + 1}
             </div>
-            <div>
-              <CardTitle className="text-sm font-semibold">
+            <div className="min-w-0">
+              <CardTitle className={cn(
+                'text-sm font-semibold truncate transition-colors',
+                isCompleted && 'text-muted-foreground',
+              )}>
                 {day.title || `Day ${dayIndex + 1}`}
               </CardTitle>
-              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                <Calendar className="h-3 w-3" />
+              <p className={cn(
+                'text-xs flex items-center gap-1 mt-0.5 transition-colors',
+                isCompleted ? 'text-muted-foreground/60' : 'text-muted-foreground',
+              )}>
+                <Calendar className="h-3 w-3 flex-shrink-0" />
                 {formatDate(day.date, 'EEEE, MMMM d, yyyy')}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          {/* Right: badge + 3 icon-buttons (flex-shrink-0 keeps them from being squeezed).
+              stopPropagation on wrapper isolates each button from the header collapse toggle. */}
+          <div
+            className="flex items-center gap-1 flex-shrink-0"
+            onClick={e => e.stopPropagation()}
+          >
             <Badge variant="secondary" className="text-xs">
               {sorted.length} {sorted.length === 1 ? 'activity' : 'activities'}
             </Badge>
+
+            {/* Complete toggle — h-10/w-10 on mobile for 40px touch target */}
             <Button
               variant="ghost" size="icon"
-              className="h-7 w-7 text-destructive hover:bg-destructive/10"
+              className={cn(
+                'h-10 w-10 md:h-7 md:w-7 flex-shrink-0 transition-colors',
+                isCompleted
+                  ? 'text-emerald-500 hover:text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-950/50'
+                  : 'text-muted-foreground/40 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30',
+              )}
+              onClick={() => onToggleComplete(day.id)}
+              title={isCompleted ? 'Mark as incomplete' : 'Mark day as completed'}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+            </Button>
+
+            {/* Collapse chevron — explicit button so right-side tap also toggles */}
+            <Button
+              variant="ghost" size="icon"
+              className="h-10 w-10 md:h-7 md:w-7 flex-shrink-0 text-muted-foreground/50 hover:text-muted-foreground hover:bg-transparent"
+              onClick={() => setCollapsed(v => !v)}
+              aria-label={collapsed ? 'Expand day' : 'Collapse day'}
+            >
+              <ChevronDown className={cn(
+                'h-4 w-4 transition-transform duration-200',
+                collapsed && '-rotate-90',
+              )} />
+            </Button>
+
+            {/* Delete */}
+            <Button
+              variant="ghost" size="icon"
+              className="h-10 w-10 md:h-7 md:w-7 flex-shrink-0 text-destructive hover:bg-destructive/10"
               onClick={() => onDeleteDay(day.id)}
               title="Delete day"
             >
@@ -455,59 +515,61 @@ function DayCard({
         </div>
       </CardHeader>
 
-      <CardContent className="pt-4 pb-3">
-        {sorted.length === 0 ? (
-          <div className="flex flex-col items-center py-6 text-center text-muted-foreground">
-            <p className="text-sm">No activities yet</p>
-            <p className="text-xs mt-0.5">Add your first activity below</p>
-          </div>
-        ) : (
-          <>
-            <DragHint />
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={onDragStart}
-            onDragEnd={(e) => onDragEnd(day.id, e)}
-            onDragCancel={onDragCancel}
+      {!collapsed && (
+        <CardContent className="pt-4 pb-3">
+          {sorted.length === 0 ? (
+            <div className="flex flex-col items-center py-6 text-center text-muted-foreground">
+              <p className="text-sm">No activities yet</p>
+              <p className="text-xs mt-0.5">Add your first activity below</p>
+            </div>
+          ) : (
+            <>
+              <DragHint />
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={onDragStart}
+                onDragEnd={(e) => onDragEnd(day.id, e)}
+                onDragCancel={onDragCancel}
+              >
+                <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+                  <div className="mb-3">
+                    {sorted.map((item, idx) => (
+                      <SortableActivityCard
+                        key={item.id}
+                        item={item}
+                        currency={currency}
+                        isLast={idx === sorted.length - 1}
+                        onEdit={onEdit}
+                        onDelete={(id) => onDelete(day.id, id)}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+
+                <DragOverlay
+                  dropAnimation={{
+                    duration: 200,
+                    easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+                  }}
+                >
+                  {activeItem ? (
+                    <OverlayCard item={activeItem} currency={currency} />
+                  ) : null}
+                </DragOverlay>
+              </DndContext>
+            </>
+          )}
+
+          <Button
+            variant="ghost" size="sm"
+            className="w-full gap-1.5 text-muted-foreground hover:text-foreground border border-dashed border-border hover:border-primary/40 mt-1"
+            onClick={() => onOpenAdd(day.id)}
           >
-            <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-              <div className="mb-3">
-                {sorted.map((item, idx) => (
-                  <SortableActivityCard
-                    key={item.id}
-                    item={item}
-                    currency={currency}
-                    isLast={idx === sorted.length - 1}
-                    onEdit={onEdit}
-                    onDelete={(id) => onDelete(day.id, id)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-
-            <DragOverlay
-              dropAnimation={{
-                duration: 200,
-                easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
-              }}
-            >
-              {activeItem ? (
-                <OverlayCard item={activeItem} currency={currency} />
-              ) : null}
-            </DragOverlay>
-          </DndContext>
-          </>
-        )}
-
-        <Button
-          variant="ghost" size="sm"
-          className="w-full gap-1.5 text-muted-foreground hover:text-foreground border border-dashed border-border hover:border-primary/40 mt-1"
-          onClick={() => onOpenAdd(day.id)}
-        >
-          <Plus className="h-3.5 w-3.5" /> Add Activity
-        </Button>
-      </CardContent>
+            <Plus className="h-3.5 w-3.5" /> Add Activity
+          </Button>
+        </CardContent>
+      )}
     </Card>
   )
 }
@@ -743,6 +805,21 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
     toast.success('Day removed')
   }
 
+  async function toggleDayComplete(dayId: string) {
+    const day = days.find(d => d.id === dayId)
+    if (!day) return
+    const next = !day.is_completed
+    setDays(d => d.map(d => d.id === dayId ? { ...d, is_completed: next } : d))
+    const { error } = await supabase
+      .from('itinerary_days')
+      .update({ is_completed: next })
+      .eq('id', dayId)
+    if (error) {
+      setDays(d => d.map(d => d.id === dayId ? { ...d, is_completed: !next } : d))
+      toast.error('Failed to update day status')
+    }
+  }
+
   const dialogOpen = addItemDialog !== null || editItem !== null
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -795,6 +872,7 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
               onEdit={openEdit}
               onDelete={deleteItem}
               onDeleteDay={deleteDay}
+              onToggleComplete={toggleDayComplete}
             />
           ))}
         </div>
