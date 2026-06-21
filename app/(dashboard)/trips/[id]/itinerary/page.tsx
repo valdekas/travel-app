@@ -14,7 +14,9 @@ export default async function TripItineraryPage({ params }: Props) {
 
   const [{ data: trip }, { data: days }, { data: locations }] = await Promise.all([
     supabase.from('trips').select('*').eq('id', id).eq('user_id', user.id).single(),
-    supabase.from('itinerary_days').select('*, items:itinerary_items(*)').eq('trip_id', id).order('date'),
+    supabase.from('itinerary_days').select('*, items:itinerary_items(*)')
+      .eq('trip_id', id).order('date')
+      .order('order_index', { referencedTable: 'itinerary_items' }),
     supabase.from('locations').select('id, name, type').eq('trip_id', id).order('name'),
   ])
 
