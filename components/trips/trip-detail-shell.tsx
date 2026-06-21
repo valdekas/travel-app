@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { Trip } from '@/lib/types'
-import { daysUntil, formatDate, getDestinationImage, getTripStatusColor } from '@/lib/utils'
+import { daysUntil, formatDate, getDestinationImage, getTripStatusColor, getEffectiveStatus } from '@/lib/utils'
 import { FlagImg } from '@/components/ui/flag-img'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -13,7 +13,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import {
   LayoutDashboard, MapPin, CheckSquare, BarChart3, BookOpen,
-  Calendar, ChevronLeft, Trash2, Loader2,
+  Calendar, ChevronLeft, Trash2, Loader2, ClipboardCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EditTripDialog } from './edit-trip-dialog'
@@ -38,6 +38,7 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
   const supabase = createClient()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [confirming, setConfirming] = useState(false)
 
   const days = daysUntil(trip.start_date)
   const imgSrc = getDestinationImage(trip)
@@ -47,6 +48,20 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
     days === 0               ? 'bg-rose-500/85' :
     days <= 7               ? 'bg-orange-500/85' :
     'bg-black/40'
+
+  async function handleConfirm() {
+    setConfirming(true)
+    try {
+      const { error } = await supabase.from('trips').update({ is_planning: false }).eq('id', trip.id)
+      if (error) throw error
+      toast.success('Trip confirmed — no longer in Planning')
+      router.refresh()
+    } catch {
+      toast.error('Failed to confirm trip')
+    } finally {
+      setConfirming(false)
+    }
+  }
 
   async function handleDelete() {
     setDeleting(true)
@@ -92,6 +107,30 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
                 </button>
               </Link>
               <div className="flex items-center gap-1.5">
+                {/* Planning pill — visible while is_planning is true */}
+                {(trip.is_planning ?? true) && (
+                  <button
+                    onClick={trip.start_date ? handleConfirm : undefined}
+                    disabled={!trip.start_date || confirming}
+                    title={
+                      !trip.start_date
+                        ? 'Add a start date before confirming'
+                        : 'Mark trip as confirmed — removes it from Planning filter'
+                    }
+                    className={cn(
+                      'flex items-center gap-1 text-xs font-medium backdrop-blur-sm border rounded-full px-2.5 py-1.5 transition-all',
+                      trip.start_date
+                        ? 'bg-amber-500/80 hover:bg-amber-500 border-amber-400/40 text-white cursor-pointer'
+                        : 'bg-black/30 border-white/15 text-white/50 cursor-not-allowed',
+                    )}
+                  >
+                    {confirming
+                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                      : <ClipboardCheck className="h-3 w-3" />
+                    }
+                    Planning
+                  </button>
+                )}
                 <EditTripDialog trip={trip} glassMode />
                 <button
                   onClick={() => setDeleteOpen(true)}
@@ -107,8 +146,8 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
             <div className="absolute bottom-3.5 left-4 right-4 flex items-end justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider backdrop-blur-sm border border-white/15 text-white/90 ${getTripStatusColor(trip.status)} bg-opacity-70`}>
-                    {trip.status}
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider backdrop-blur-sm border border-white/15 text-white/90 ${getTripStatusColor(getEffectiveStatus(trip))} bg-opacity-70`}>
+                    {getEffectiveStatus(trip)}
                   </span>
                 </div>
                 <h1 className="text-white font-bold text-[1.15rem] md:text-xl leading-snug line-clamp-1">{trip.name}</h1>

@@ -1,5 +1,75 @@
 # Changelog
 
+## 2026-06-21 (Two-dimensional planning flag — is_planning)
+
+### Added — `supabase/migrations/010_is_planning.sql`, `lib/types/index.ts`, `components/trips/trip-detail-shell.tsx`, `components/trips/trips-list-content.tsx`, `components/trips/edit-trip-dialog.tsx`
+
+**Feature:** Trip status is now two-dimensional, layering on top of the date-derived `getEffectiveStatus()` fix:
+
+- **Dimension 1 (unchanged):** `getEffectiveStatus()` derives `upcoming` / `active` / `completed` from `start_date` / `end_date`
+- **Dimension 2 (new):** `is_planning` boolean column (`DEFAULT TRUE`). While true, the trip also appears under the "Planning" filter regardless of its date-derived state.
+
+**Migration:** `ALTER TABLE trips ADD COLUMN IF NOT EXISTS is_planning BOOLEAN NOT NULL DEFAULT TRUE` — all existing trips default to planning=true.
+
+**UI — Planning pill in trip hero (`trip-detail-shell.tsx`):**
+- Amber pill labelled "Planning" with a checkmark icon appears in the top action bar while `is_planning = true`
+- Clicking it calls `UPDATE trips SET is_planning = false` and refreshes — trip disappears from the Planning filter but stays under Upcoming/Active/Completed
+- Disabled (greyed, cursor-not-allowed) with tooltip if no `start_date` is set, preventing orphaned confirmed trips
+
+**Filter logic (`trips-list-content.tsx`):** Two-dimensional match:
+- `planning` filter: `is_planning === true AND effective !== 'cancelled'`
+- `upcoming/active/completed`: `getEffectiveStatus(t) === filter` (unchanged)
+- `cancelled`: `getEffectiveStatus(t) === 'cancelled'` (unchanged, never leaks into planning)
+
+**Edit dialog (`edit-trip-dialog.tsx`):** Toggle switch in the Planning section lets power users revert `is_planning` back to true after confirming.
+
+**Verified matrix:**
+
+| Trip | planning | upcoming | active | completed | cancelled |
+|---|---|---|---|---|---|
+| Chicago 64d (is_planning=true) | ✓ | ✓ | | | |
+| Costa Blanca 125d (is_planning=true) | ✓ | ✓ | | | |
+| Chicago confirmed (is_planning=false) | | ✓ | | | |
+| Past trip (is_planning=true) | ✓ | | | ✓ | |
+| Active confirmed (is_planning=false) | | | ✓ | | |
+| No dates (is_planning=true) | ✓ | | | | |
+| Cancelled (is_planning=true) | | | | | ✓ |
+
+---
+
+## 2026-06-21 (Trip status — derive Upcoming/Active/Completed from dates)
+
+### Fixed — `lib/utils/index.ts`, `components/trips/trips-list-content.tsx`, `components/trips/trip-detail-shell.tsx`, `app/(dashboard)/dashboard/page.tsx`, `components/dashboard/dashboard-content.tsx`
+
+**Bug:** `trips.status` was a purely manual field defaulting to `'planning'` at creation, with no automatic promotion. This caused two failures:
+
+1. **"Upcoming" filter on My Trips page showed no results** even for trips with start dates 64–125 days in the future — because those trips had `status = 'planning'` in the DB and the filter did a strict equality match (`t.status === 'upcoming'`).
+2. **Past trips were never shown as "Completed"** — same strict match meant trips with past end dates remained invisible to the Completed filter unless the user manually changed the field.
+
+The Dashboard's "Upcoming Trips" widget already worked correctly because it filtered by `start_date > now` (date-based). The My Trips filter and trip detail badge used the stale stored value.
+
+**Fix:** Added `getEffectiveStatus(trip)` to `lib/utils/index.ts` which derives the real status from dates at day granularity:
+
+| Condition | Effective status |
+|---|---|
+| `status === 'cancelled'` | `'cancelled'` (manual-only, never overridden) |
+| No `start_date` | stored status (can't derive) |
+| `start_date > today` | `'upcoming'` |
+| `start_date ≤ today` AND (`end_date ≥ today` OR no end) | `'active'` |
+| `end_date < today` | `'completed'` |
+
+`'planning'` is the natural fallback for trips with no dates set.
+
+Applied `getEffectiveStatus` in:
+- **My Trips filter** — filter now matches effective status, not stored DB value
+- **Trip detail hero badge** — shows derived status (e.g. "upcoming" not "planning")
+- **Dashboard page** — `activeTrips` and `upcomingTrips` both use effective status
+- **Dashboard content** — `completedTrips` count and `countriesVisited` fallback both use effective status
+
+**Verified:** Chicago (64d, stored=planning → upcoming), Costa Blanca (125d, stored=planning → upcoming), past trip (stored=planning → completed), active trip (started 6d ago → active), no-dates trip (→ planning), cancelled trip (→ cancelled).
+
+---
+
 ## 2026-06-21 (My Travel Map — continent count consistency fix)
 
 ### Fixed — `components/dashboard/world-map-widget.tsx`

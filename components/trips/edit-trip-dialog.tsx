@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Edit, Loader2, ImageIcon, Wand2, Link as LinkIcon, X } from 'lucide-react'
+import { Edit, Loader2, ImageIcon, Wand2, Link as LinkIcon, X, ClipboardCheck } from 'lucide-react'
 
 interface EditTripDialogProps {
   trip: Trip
@@ -36,6 +36,7 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
     notes: trip.notes ?? '',
     status: trip.status,
     cover_photo: trip.cover_photo ?? '',
+    is_planning: trip.is_planning ?? true,
   })
 
   const set = (k: string, v: string | null) => setForm(f => ({ ...f, [k]: v ?? '' }))
@@ -60,6 +61,7 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
         currency: form.currency,
         notes: form.notes || null,
         status: form.status,
+        is_planning: form.is_planning,
         cover_photo: form.cover_photo || null,
       }).eq('id', trip.id)
 
@@ -130,7 +132,7 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Status</Label>
+            <Label>Status override</Label>
             <Select value={form.status} onValueChange={v => set('status', v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -139,6 +141,41 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Upcoming / Active / Completed are auto-derived from dates. Only set manually to override or cancel.
+            </p>
+          </div>
+
+          {/* Planning flag toggle */}
+          <div className="flex items-start justify-between gap-3 py-2.5 px-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40">
+            <div className="flex items-center gap-2 min-w-0">
+              <ClipboardCheck className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Still planning</p>
+                <p className="text-[11px] text-amber-700/70 dark:text-amber-400/70">
+                  {form.is_planning
+                    ? 'Trip appears under the "Planning" filter'
+                    : 'Trip is confirmed — not shown under "Planning"'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, is_planning: !f.is_planning }))}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+                form.is_planning
+                  ? 'bg-amber-500'
+                  : 'bg-slate-300 dark:bg-slate-600'
+              }`}
+              role="switch"
+              aria-checked={form.is_planning}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transform transition-transform ${
+                  form.is_planning ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
           <div className="space-y-1.5">
             <Label>Notes</Label>

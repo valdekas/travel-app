@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Trip, TripStatus } from '@/lib/types'
-import { daysUntil, formatDate, tripDuration, getTripStatusColor, formatCurrency } from '@/lib/utils'
+import { daysUntil, formatDate, tripDuration, getTripStatusColor, formatCurrency, getEffectiveStatus } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -34,7 +34,20 @@ export function TripsListContent({ trips }: TripsListContentProps) {
     const matchesSearch =
       t.name.toLowerCase().includes(search.toLowerCase()) ||
       t.country.toLowerCase().includes(search.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || t.status === statusFilter
+
+    let matchesStatus: boolean
+    if (statusFilter === 'all') {
+      matchesStatus = true
+    } else if (statusFilter === 'planning') {
+      // Planning is a separate dimension — true while is_planning flag is set
+      matchesStatus = (t.is_planning ?? true) && getEffectiveStatus(t) !== 'cancelled'
+    } else if (statusFilter === 'cancelled') {
+      matchesStatus = getEffectiveStatus(t) === 'cancelled'
+    } else {
+      // 'upcoming' | 'active' | 'completed' — purely date-derived
+      matchesStatus = getEffectiveStatus(t) === statusFilter
+    }
+
     return matchesSearch && matchesStatus
   })
 

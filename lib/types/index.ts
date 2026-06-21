@@ -26,6 +26,7 @@ export interface Trip {
   notes?: string
   cover_photo?: string
   status: TripStatus
+  is_planning: boolean
   created_at: string
   updated_at: string
   // computed fields
