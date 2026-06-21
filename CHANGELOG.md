@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-06-21 (My Trips sort order — consistent with Dashboard)
+
+### Fixed — `components/trips/trips-list-content.tsx`
+
+**Bug:** My Trips displayed trips in DB insertion order (`created_at DESC`) while the Dashboard's "Upcoming Trips" section showed them sorted by `start_date ASC` (soonest first). A tester reported the order was inconsistent between the two pages.
+
+**Root cause:** `app/(dashboard)/trips/page.tsx` fetches with `.order('created_at', { ascending: false })` and passes the result directly to `TripsListContent` with no further sort. The Dashboard re-sorts its upcoming trips in-memory by `start_date ASC` before rendering.
+
+**Fix:** Added an in-memory sort after filtering in `trips-list-content.tsx`:
+- Trips with `start_date`: sorted `ASC` by date (soonest first) — matches Dashboard
+- Trips without `start_date`: sorted `DESC` by `created_at` (newest first), appended after dated trips
+- Sort is applied to `sorted = [...filtered]` so filtering and sort are independent
+
+**Verified:** Chicago (Aug 24) appears before Costa Blanca (Oct 24) on both Dashboard and My Trips, across all filter tabs.
+
+---
+
 ## 2026-06-21 (Two-dimensional planning flag — is_planning)
 
 ### Added — `supabase/migrations/010_is_planning.sql`, `lib/types/index.ts`, `components/trips/trip-detail-shell.tsx`, `components/trips/trips-list-content.tsx`, `components/trips/edit-trip-dialog.tsx`

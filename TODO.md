@@ -169,6 +169,7 @@ Ideas that should NOT be implemented yet.
 * [x] Visited Countries – Improve system: flag-forward cards, continent on all cards, "Regions • States • Islands" label, Greece/Portugal islands, Spain/Italy island details
 * [x] Trip status logic — `getEffectiveStatus()` derives Upcoming/Active/Completed from dates; My Trips filter, trip hero badge, dashboard active/completed counts all updated; Cancelled remains manual-only
 * [x] Two-dimensional planning flag — `is_planning` boolean (DB: `010_is_planning.sql`); Planning pill in trip hero confirms a trip; filter shows Planning AND date-derived state simultaneously; toggle also in edit dialog
+* [x] My Trips sort order — trips now sorted by `start_date ASC` (soonest first), no-date trips appended by `created_at DESC`; matches Dashboard order
 * [x] Command palette (⌘K) — full-text search across trips, places, wishlist, checklist, journal with recent history and keyboard navigation
 * [x] Settings hub — account, appearance, language, notifications, privacy, subscription; iOS-style mobile hub
 * [x] UI primitives — FlagImg, CountrySelect, PlacesAutocomplete, DragHint

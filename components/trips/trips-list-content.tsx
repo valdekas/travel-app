@@ -51,6 +51,16 @@ export function TripsListContent({ trips }: TripsListContentProps) {
     return matchesSearch && matchesStatus
   })
 
+  // Sort: trips with a start_date ascending (soonest first), no-date trips last by created_at desc
+  const sorted = [...filtered].sort((a, b) => {
+    if (a.start_date && b.start_date) {
+      return new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+    }
+    if (a.start_date) return -1
+    if (b.start_date) return 1
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  })
+
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -91,7 +101,7 @@ export function TripsListContent({ trips }: TripsListContentProps) {
       </div>
 
       {/* Grid */}
-      {filtered.length === 0 ? (
+      {sorted.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Globe className="h-12 w-12 text-muted-foreground/30 mb-4" />
@@ -114,7 +124,7 @@ export function TripsListContent({ trips }: TripsListContentProps) {
         </Card>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map(trip => (
+          {sorted.map(trip => (
             <TripCard key={trip.id} trip={trip} />
           ))}
         </div>
