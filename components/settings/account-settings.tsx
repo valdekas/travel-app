@@ -40,7 +40,7 @@ export function AccountSettings({ user }: Props) {
     const ext = file.name.split('.').pop()
     const path = `${user.id}/avatar.${ext}`
     const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
-    if (uploadError) { toast.error('Upload failed — create an "avatars" bucket in Supabase Storage first'); return }
+    if (uploadError) { toast.error('Upload failed: ' + uploadError.message); return }
     const { data } = supabase.storage.from('avatars').getPublicUrl(path)
     setAvatarUrl(data.publicUrl + `?t=${Date.now()}`)
     toast.success('Avatar updated')

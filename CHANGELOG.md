@@ -1,5 +1,53 @@
 # Changelog
 
+## 2026-06-21 (Pre-mobile readiness — avatars bucket + storage utility decoupling)
+
+### Fixed — `supabase/migrations/011_avatars_storage.sql`, `lib/utils/journal-photos.ts`, `components/journal/journal-content.tsx`, `components/settings/account-settings.tsx`
+
+**Two "do now" items from the mobile readiness audit, both of which were also live web bugs:**
+
+**1. Avatars bucket (web bug fix)**
+
+Avatar upload in Settings silently failed because the `avatars` storage bucket had no migration and did not exist in production. Confirmed via Supabase management API: only `journal-photos` existed before this change.
+
+Created `011_avatars_storage.sql` matching the `008_journal_photos_storage.sql` pattern:
+- Public bucket (2 MB limit, image MIME types) — URLs render in `<img>` tags without auth
+- `avatars_insert` / `avatars_update`: `(storage.foldername(name))[1] = auth.uid()::text` — users can only write to their own folder
+- `avatars_select`: public read for all rows
+- `avatars_delete`: user-scoped delete
+- Migration applied to Supabase; both buckets now confirmed present
+
+Error message in `account-settings.tsx` updated from static instructions-for-developer string to `uploadError.message`.
+
+**2. Storage utility decoupling (mobile portability)**
+
+`uploadJournalPhoto` and `deleteJournalPhoto` in `lib/utils/journal-photos.ts` previously called `createClient()` (the `@supabase/ssr` browser-only factory) internally, coupling the utility to a web-specific dependency.
+
+Refactored both functions to accept a `SupabaseClient` as their first parameter. Removed `import { createClient }` from the utility file; added `import type { SupabaseClient } from '@supabase/supabase-js'`.
+
+Caller (`PhotosEditor` in `journal-content.tsx`) now instantiates `const supabase = createClient()` at component level and passes it to `uploadJournalPhoto`. Zero behaviour change on web; utility is now portable to any platform.
+
+---
+
+## 2026-06-21 (Mobile Readiness Audit)
+
+### Added — `MOBILE_READINESS.md`
+
+Full static audit of the Supabase / auth / data-access / storage / environment architecture for React Native readiness. No existing code was modified.
+
+**Verdict:** Backend is in very good shape. Direct Supabase SDK calls, thorough user-scoped RLS across all 10 tables, no service role key, no server-side business logic, all env vars are `NEXT_PUBLIC_`.
+
+**Two items flagged as "do now" (web bugs too, not mobile-only):**
+1. `avatars` storage bucket has no migration — `account-settings.tsx` references it but upload silently fails if the bucket doesn't exist in production
+2. `uploadJournalPhoto`/`deleteJournalPhoto` in `lib/utils/journal-photos.ts` call `createClient()` internally, coupling storage utilities to the browser-only `@supabase/ssr` factory
+
+**One item flagged as "do before mobile project starts":**
+- Google Places proxy (Supabase Edge Function) — current `PlacesAutocomplete` uses browser-only Maps JS SDK script injection, not portable to React Native
+
+**Everything else is deferred** to when the React Native project actually starts (AsyncStorage client, deep link OAuth, Expo setup, push notifications).
+
+---
+
 ## 2026-06-21 (My Trips sort order — consistent with Dashboard)
 
 ### Fixed — `components/trips/trips-list-content.tsx`

@@ -350,6 +350,7 @@ function PhotosEditor({
   onChange: (urls: string[]) => void
   onUploadingChange?: (uploading: boolean) => void
 }) {
+  const supabase = createClient()
   const [items, setItems] = useState<PhotoItem[]>(() =>
     initialUrls.map(url => ({ id: genId(), type: 'saved' as const, url }))
   )
@@ -384,7 +385,7 @@ function PhotosEditor({
       const placeholder = newItems[i]
       setItems(prev => prev.map(p => p.id === placeholder.id && p.type === 'uploading' ? { ...p, progress: 25 } : p))
       try {
-        const url = await uploadJournalPhoto(file, userId, tripId)
+        const url = await uploadJournalPhoto(supabase, file, userId, tripId)
         if (placeholder.type === 'uploading') URL.revokeObjectURL(placeholder.blobUrl)
         setItems(prev => prev.map(p => p.id === placeholder.id ? { id: p.id, type: 'done', url } : p))
         toast.success('Photo uploaded')

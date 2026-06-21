@@ -33,6 +33,11 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [ ] Improve zoom & pan smoothness
 * [ ] State/Province support (USA first)
 
+## Pre-Mobile Readiness (low-effort, also fix web bugs)
+
+* [x] Create `supabase/migrations/011_avatars_storage.sql` — avatars bucket is referenced in `account-settings.tsx` but has no migration; upload silently fails without it
+* [x] Refactor `uploadJournalPhoto` / `deleteJournalPhoto` in `lib/utils/journal-photos.ts` to accept a Supabase client parameter instead of calling `createClient()` internally — removes the only tight coupling to the browser-only client factory
+
 ## Trip Details
 
 * [ ] Polish Hero section

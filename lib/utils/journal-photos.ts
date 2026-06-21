@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const BUCKET = 'journal-photos'
@@ -24,12 +24,11 @@ export function validateImageFile(file: File): string | null {
  * Path: {userId}/{tripId}/{timestamp}_{random}.{ext}
  */
 export async function uploadJournalPhoto(
+  supabase: SupabaseClient,
   file: File,
   userId: string,
   tripId: string,
 ): Promise<string> {
-  const supabase = createClient()
-
   const ext = file.name.split('.').pop()?.toLowerCase().replace('jpg', 'jpeg') ?? 'jpeg'
   const uniqueName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
   const storagePath = `${userId}/${tripId}/${uniqueName}`
@@ -59,10 +58,9 @@ export function isJournalStorageUrl(url: string): boolean {
  * Deletes a photo from Supabase Storage.
  * No-ops silently for external URLs (URL-pasted photos).
  */
-export async function deleteJournalPhoto(url: string, userId: string): Promise<void> {
+export async function deleteJournalPhoto(supabase: SupabaseClient, url: string, userId: string): Promise<void> {
   if (!isJournalStorageUrl(url)) return
 
-  const supabase = createClient()
   const marker = `/public/${BUCKET}/`
   const idx = url.indexOf(marker)
   if (idx === -1) return
