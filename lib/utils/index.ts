@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { differenceInDays, format, parseISO, isValid } from 'date-fns'
+import { differenceInDays, format, parseISO, isValid, startOfDay, isAfter, isBefore } from 'date-fns'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -58,6 +58,32 @@ export function getTripStatusColor(status: string): string {
 export function truncate(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str
   return str.slice(0, maxLength) + '…'
+}
+
+/**
+ * Derives the real trip status from dates, overriding the stored DB value for
+ * date-determinable states.  "cancelled" is always manual and never overridden.
+ * Without a start_date the stored status is returned as-is.
+ *
+ * Rules (all comparisons at day granularity, local time):
+ *   start_date > today          → 'upcoming'
+ *   start_date ≤ today
+ *     AND (end_date ≥ today OR no end_date)  → 'active'
+ *   end_date < today            → 'completed'
+ */
+export function getEffectiveStatus(
+  trip: { status: string; start_date?: string | null; end_date?: string | null },
+): string {
+  if (trip.status === 'cancelled') return 'cancelled'
+  if (!trip.start_date) return trip.status
+
+  const today = startOfDay(new Date())
+  const startDay = startOfDay(parseISO(trip.start_date))
+  const endDay = trip.end_date ? startOfDay(parseISO(trip.end_date)) : null
+
+  if (isAfter(startDay, today)) return 'upcoming'
+  if (endDay && isBefore(endDay, today)) return 'completed'
+  return 'active'
 }
 
 const CITY_IMAGES: Record<string, string> = {

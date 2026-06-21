@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { format } from 'date-fns'
 import { Trip } from '@/lib/types'
-import { getDestinationImage, daysUntil, formatDate } from '@/lib/utils'
+import { getDestinationImage, daysUntil, formatDate, getEffectiveStatus } from '@/lib/utils'
 import { FlagImg } from '@/components/ui/flag-img'
 import { Button } from '@/components/ui/button'
 import {
@@ -92,18 +92,18 @@ export function DashboardContent({
   const upcomingTrips = useMemo(
     () =>
       trips
-        .filter(t => t.start_date && new Date(t.start_date) > now)
+        .filter(t => getEffectiveStatus(t) === 'upcoming')
         .sort((a, b) => new Date(a.start_date!).getTime() - new Date(b.start_date!).getTime()),
     [trips],
   )
 
-  const activeTrips = trips.filter(t => t.status === 'active')
+  const activeTrips = trips.filter(t => getEffectiveStatus(t) === 'active')
   const nextTrip = upcomingTrips[0] ?? activeTrips[0] ?? null
-  const completedTrips = trips.filter(t => t.status === 'completed').length
+  const completedTrips = trips.filter(t => getEffectiveStatus(t) === 'completed').length
 
   const countriesVisited = visitedCountryCodes.length > 0
     ? visitedCountryCodes.length
-    : new Set(trips.filter(t => t.status === 'completed').map(t => t.country)).size
+    : new Set(trips.filter(t => getEffectiveStatus(t) === 'completed').map(t => t.country)).size
 
   const continentsVisited = visitedContinents.length
 

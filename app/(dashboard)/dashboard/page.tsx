@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { DashboardContent } from '@/components/dashboard/dashboard-content'
 import { redirect } from 'next/navigation'
 import type { RecentActivityItem } from '@/components/dashboard/recent-activity-widget'
+import { getEffectiveStatus } from '@/lib/utils'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -41,9 +42,9 @@ export default async function DashboardPage() {
   const sortedTrips = trips ?? []
 
   const upcomingTrips = sortedTrips
-    .filter(t => t.start_date && new Date(t.start_date) > now)
+    .filter(t => getEffectiveStatus(t) === 'upcoming')
     .sort((a, b) => new Date(a.start_date!).getTime() - new Date(b.start_date!).getTime())
-  const activeTrips = sortedTrips.filter(t => t.status === 'active')
+  const activeTrips = sortedTrips.filter(t => getEffectiveStatus(t) === 'active')
   const nextTrip = upcomingTrips[0] ?? activeTrips[0] ?? null
 
   /* ── Phase 2: next-trip-specific data ── */
