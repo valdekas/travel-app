@@ -1,14 +1,12 @@
 # 📋 Travel Planner – TODO
 
-Last Updated: 2026-06-20
+Last Updated: 2026-06-21
 
 ---
 
 ## 🚨 Current Focus
 
 DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
-
-
 
 # 🔥 Current Sprint (Highest Priority)
 
@@ -38,8 +36,8 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 ## Trip Details
 
 * [ ] Polish Hero section
-* [ ] Add weather widget
-* [ ] Add Trip Readiness widget
+* [ ] Add weather widget (placeholder — no API yet)
+* [ ] Add Trip Readiness widget to Overview tab
 * [ ] Improve Overview cards
 * [ ] Better spacing and alignment
 
@@ -169,3 +167,8 @@ Ideas that should NOT be implemented yet.
 * [x] Visited Countries — Continents counter now includes partial visits (continent counts if any country is full or partial)
 * [x] My Travel Map — header subtitle and stats bar both use visited continent count (full+partial), stats bar relabeled "Continents Visited"
 * [x] Visited Countries – Improve system: flag-forward cards, continent on all cards, "Regions • States • Islands" label, Greece/Portugal islands, Spain/Italy island details
+* [x] Command palette (⌘K) — full-text search across trips, places, wishlist, checklist, journal with recent history and keyboard navigation
+* [x] Settings hub — account, appearance, language, notifications, privacy, subscription; iOS-style mobile hub
+* [x] UI primitives — FlagImg, CountrySelect, PlacesAutocomplete, DragHint
+* [x] Shared shell/nav polish — sidebar, topbar, dashboard-shell updated to new design system
+* [x] Landing page redesign — animated SVG globe, feature cards, destinations gallery, testimonials, Framer Motion scroll-reveal
