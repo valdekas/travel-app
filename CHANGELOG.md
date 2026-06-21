@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-06-21 (Itinerary — chronological insert for new activities)
+
+### Fixed — `components/itinerary/itinerary-content.tsx`
+
+**Problem:** Adding activities in non-chronological order (e.g. 08:00 → 11:00 → 09:00) appended them to the end of the day list, producing the wrong visual order (08:00, 11:00, 09:00 instead of 08:00, 09:00, 11:00).
+
+**Root cause:** `handleSave()` always inserted new items with `order_index: currentCount` (append-at-end). `start_time` was display metadata only; `byOrderIndex()` — the sole sort function — never consulted it.
+
+**Why "sort by time on display" was rejected:** If `byOrderIndex` were replaced with a time-first sort, `handleDragEnd` would still update `order_index` values but they'd have no visible effect for timed items (display re-sorts by time on every render). Dragging a 09:00 item to appear after 12:00 would animate and snap back immediately — broken UX. DnD must remain the authoritative sort mechanism.
+
+**Fix — slot new item at its chronological position on INSERT:**
+- `byOrderIndex` and `handleDragEnd` are unchanged; DnD works exactly as before
+- On INSERT of a new item with `start_time`:
+  1. Walk the display-sorted existing items in reverse to find the **last item whose `start_time ≤ new item's time`** (the left neighbor)
+  2. `insertAt = leftNeighbor.order_index + 1` (or 0 if new item has the earliest time)
+  3. All existing items with `order_index ≥ insertAt` are shifted up by 1 (fire-and-forget UPDATE, same pattern as DnD)
+  4. New item is INSERTed with the computed `order_index`
+  5. Local state is updated immediately: shifted items get +1, new item appended (React re-sorts by `order_index` on next render)
+- On INSERT of a no-time item: unchanged behavior (append at end)
+- `start_time` values from DB are `"HH:MM:SS"`; payload from form is `"HH:MM"`. Both are normalized to `"HH:MM"` with `.slice(0, 5)` before comparison.
+
+**DnD coexistence:**
+- After a drag, `order_index` values reflect the manual visual order; this sticks on reload
+- After a drag followed by adding a new timed item, the new item slots after its time-predecessor's current display position (not its chronological position relative to the dragged state). Predictable and conservative — no existing items are disturbed beyond the necessary shift.
+
+**Verified test case:** add 08:00, then 11:00, then 09:00 → final order 08:00, 09:00, 11:00 ✅
+
+---
+
 ## 2026-06-21 (Itinerary — activity detail expand-in-place)
 
 ### Added — `components/itinerary/itinerary-content.tsx`

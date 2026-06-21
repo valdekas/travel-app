@@ -674,15 +674,49 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
         toast.success('Activity updated')
       } else {
         const dayId = addItemDialog!
-        const currentCount = days.find(d => d.id === dayId)?.items?.length ?? 0
+        const existingItems = byOrderIndex(days.find(d => d.id === dayId)?.items ?? [])
+
+        // Slot new item at its chronological position by start_time.
+        // No-time activities append at the end.
+        let insertAt: number
+        if (payload.start_time) {
+          const newTime = payload.start_time.slice(0, 5)
+          // Walk display-sorted items in reverse to find the last item whose
+          // time ≤ new item's time; new item slots directly after it.
+          // Existing items from DB have "HH:MM:SS" format; slice to "HH:MM" for comparison.
+          const leftNeighbor = [...existingItems]
+            .reverse()
+            .find(i => i.start_time && i.start_time.slice(0, 5) <= newTime)
+          insertAt = leftNeighbor !== undefined ? leftNeighbor.order_index + 1 : 0
+        } else {
+          insertAt = existingItems.length
+        }
+
+        // Shift every item at or after insertAt up by one (fire-and-forget,
+        // same pattern as DnD reorder — no uniqueness constraint on order_index)
+        existingItems
+          .filter(i => i.order_index >= insertAt)
+          .forEach(i => {
+            supabase
+              .from('itinerary_items')
+              .update({ order_index: i.order_index + 1 })
+              .eq('id', i.id)
+              .then(({ error: e }) => { if (e) console.error('Reorder failed:', e) })
+          })
+
         const { data, error } = await supabase
           .from('itinerary_items')
-          .insert({ ...payload, day_id: dayId, trip_id: trip.id, order_index: currentCount })
+          .insert({ ...payload, day_id: dayId, trip_id: trip.id, order_index: insertAt })
           .select().single()
         if (error) throw error
-        setDays(d => d.map(day =>
-          day.id === dayId ? { ...day, items: [...(day.items ?? []), data] } : day
-        ))
+
+        setDays(d => d.map(day => {
+          if (day.id !== dayId) return day
+          const shiftedItems = day.items.map(i =>
+            i.order_index >= insertAt ? { ...i, order_index: i.order_index + 1 } : i
+          )
+          return { ...day, items: [...shiftedItems, data] }
+        }))
         toast.success('Activity added')
       }
       closeDialog()
