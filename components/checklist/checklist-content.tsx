@@ -1,8 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import type { ChecklistItem, ChecklistCategory, Priority } from '@/lib/types'
-import { getPriorityColor, formatDate } from '@/lib/utils'
+import {
+  DndContext, DragOverlay, closestCenter,
+  PointerSensor, KeyboardSensor, TouchSensor,
+  useSensor, useSensors,
+  type DragEndEvent, type DragStartEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
+  useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import type { ChecklistItem, ChecklistCategory } from '@/lib/types'
+import { formatDate } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,41 +25,65 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DragHint } from '@/components/shared/drag-hint'
 import { toast } from 'sonner'
-import { Plus, CheckSquare, FileText, Package, Wand2, Trash2, Loader2 } from 'lucide-react'
+import { Plus, CheckSquare, FileText, Package, Trash2, Loader2, GripVertical, MoreVertical, Circle } from 'lucide-react'
+
+// ── Constants ──────────────────────────────────────────────────────────────────
 
 const CATEGORY_ICONS: Record<ChecklistCategory, React.ElementType> = {
   documents: FileText,
-  packing: Package,
-  custom: CheckSquare,
+  packing:   Package,
+  custom:    CheckSquare,
 }
 
 const CATEGORY_LABELS: Record<ChecklistCategory, string> = {
   documents: 'Documents',
-  packing: 'Packing',
-  custom: 'Custom',
+  packing:   'Packing',
+  custom:    'Custom',
 }
 
-interface ChecklistContentProps {
-  tripId: string
-  initialItems: ChecklistItem[]
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function byOrderIndex(items: ChecklistItem[]): ChecklistItem[] {
+  return [...items].sort((a, b) => a.order_index - b.order_index)
 }
 
-function ChecklistItem({ item, onToggle, onDelete }: {
+// ── Item visual (shared by sortable row and overlay) ───────────────────────────
+
+function ItemDisplay({
+  item,
+  onToggle,
+  onDelete,
+  isDragging = false,
+}: {
   item: ChecklistItem
   onToggle: (id: string, done: boolean) => void
   onDelete: (id: string) => void
+  isDragging?: boolean
 }) {
   return (
-    <div className={`flex items-start gap-3 p-3 rounded-lg hover:bg-muted/40 group transition-colors ${item.completed ? 'opacity-60' : ''}`}>
+    <div className={cn(
+      'flex items-start gap-2 p-3 rounded-lg transition-colors',
+      !isDragging && 'hover:bg-muted/40 group',
+      item.completed && 'opacity-60',
+    )}>
+      {/* Check button */}
       <button
         onClick={() => onToggle(item.id, !item.completed)}
         className="mt-0.5 flex-shrink-0"
       >
-        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-          item.completed ? 'bg-emerald-500 border-emerald-500' : 'border-muted-foreground/40 hover:border-primary'
-        }`}>
+        <div className={cn(
+          'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
+          item.completed
+            ? 'bg-emerald-500 border-emerald-500'
+            : 'border-muted-foreground/40 hover:border-primary',
+        )}>
           {item.completed && (
             <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -55,13 +91,12 @@ function ChecklistItem({ item, onToggle, onDelete }: {
           )}
         </div>
       </button>
+
+      {/* Text */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`font-medium text-sm ${item.completed ? 'line-through text-muted-foreground' : ''}`}>
+          <span className={cn('font-medium text-sm', item.completed && 'line-through text-muted-foreground')}>
             {item.title}
-          </span>
-          <span className={`text-xs font-medium ${getPriorityColor(item.priority)}`}>
-            {item.priority}
           </span>
           {item.due_date && (
             <span className="text-xs text-muted-foreground">due {formatDate(item.due_date, 'MMM d')}</span>
@@ -71,16 +106,197 @@ function ChecklistItem({ item, onToggle, onDelete }: {
           <p className="text-xs text-muted-foreground mt-0.5">{item.notes}</p>
         )}
       </div>
+
+      {/* Desktop: Delete (hover-revealed) */}
       <Button
         variant="ghost"
         size="icon"
-        className="h-7 w-7 opacity-0 group-hover:opacity-100 flex-shrink-0 text-destructive hover:bg-destructive/10"
-        onClick={() => onDelete(item.id)}
+        className="hidden md:inline-flex h-7 w-7 opacity-0 group-hover:opacity-100 flex-shrink-0 text-destructive hover:bg-destructive/10"
+        onClick={() => { if (confirm('Delete this task?')) onDelete(item.id) }}
       >
         <Trash2 className="h-3.5 w-3.5" />
       </Button>
+
+      {/* Mobile: three-dot overflow menu */}
+      <div className="flex md:hidden flex-shrink-0">
+        <DropdownMenu>
+          <DropdownMenuTrigger render={
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" aria-label="More options">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          } />
+          <DropdownMenuContent align="end" className="min-w-44">
+            <DropdownMenuItem onClick={() => onToggle(item.id, !item.completed)}>
+              {item.completed
+                ? <Circle className="h-4 w-4" />
+                : <CheckSquare className="h-4 w-4" />
+              }
+              {item.completed ? 'Mark incomplete' : 'Mark complete'}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={() => { if (confirm('Delete this task?')) onDelete(item.id) }}>
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   )
+}
+
+// ── Overlay card (rendered inside DragOverlay — no interaction handlers) ───────
+
+function OverlayItem({ item }: { item: ChecklistItem }) {
+  return (
+    <div
+      style={{ transform: 'scale(1.02)', transformOrigin: 'center' }}
+      className="flex items-start gap-2 p-3 rounded-lg bg-background border border-border shadow-lg"
+    >
+      <div className="mt-0.5 flex-shrink-0">
+        <div className={cn(
+          'w-5 h-5 rounded border-2 flex items-center justify-center',
+          item.completed ? 'bg-emerald-500 border-emerald-500' : 'border-muted-foreground/40',
+        )}>
+          {item.completed && (
+            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
+      </div>
+      <div className="flex-1 min-w-0">
+        <span className={cn('font-medium text-sm', item.completed && 'line-through text-muted-foreground')}>
+          {item.title}
+        </span>
+        {item.notes && <p className="text-xs text-muted-foreground mt-0.5">{item.notes}</p>}
+      </div>
+      <GripVertical className="h-4 w-4 text-muted-foreground/50 flex-shrink-0 mt-0.5" />
+    </div>
+  )
+}
+
+// ── Sortable row ───────────────────────────────────────────────────────────────
+
+function SortableRow({
+  item,
+  onToggle,
+  onDelete,
+  isLast,
+}: {
+  item: ChecklistItem
+  onToggle: (id: string, done: boolean) => void
+  onDelete: (id: string) => void
+  isLast: boolean
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition: transition ?? undefined,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      className={cn(
+        'flex items-start gap-1 group/row',
+        !isLast && 'border-b border-border',
+        isDragging && 'opacity-40',
+      )}
+    >
+      {/* Drag handle — only this triggers drag */}
+      <button
+        {...listeners}
+        className="flex items-center justify-center flex-shrink-0 cursor-grab active:cursor-grabbing touch-none min-h-[44px] w-9 text-muted-foreground/50 hover:text-muted-foreground/80 active:text-muted-foreground opacity-100 md:opacity-0 md:group-hover/row:opacity-100 transition-opacity"
+        aria-label="Drag to reorder"
+        tabIndex={-1}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+
+      <div className="flex-1 min-w-0">
+        <ItemDisplay item={item} onToggle={onToggle} onDelete={onDelete} isDragging={isDragging} />
+      </div>
+    </div>
+  )
+}
+
+// ── Per-category DnD list ──────────────────────────────────────────────────────
+
+function CategoryDndList({
+  items,
+  onToggle,
+  onDelete,
+  onReorder,
+}: {
+  items: ChecklistItem[]
+  onToggle: (id: string, done: boolean) => void
+  onDelete: (id: string) => void
+  onReorder: (reordered: ChecklistItem[]) => void
+}) {
+  const [activeItem, setActiveItem] = useState<ChecklistItem | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  function handleDragStart(event: DragStartEvent) {
+    const found = items.find(i => i.id === event.active.id)
+    setActiveItem(found ?? null)
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveItem(null)
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const sorted = byOrderIndex(items)
+    const oldIdx = sorted.findIndex(i => i.id === active.id)
+    const newIdx = sorted.findIndex(i => i.id === over.id)
+    if (oldIdx === -1 || newIdx === -1) return
+
+    const reordered = arrayMove(sorted, oldIdx, newIdx)
+    onReorder(reordered)
+  }
+
+  const sorted = byOrderIndex(items)
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext items={sorted.map(i => i.id)} strategy={verticalListSortingStrategy}>
+        {sorted.map((item, idx) => (
+          <SortableRow
+            key={item.id}
+            item={item}
+            onToggle={onToggle}
+            onDelete={onDelete}
+            isLast={idx === sorted.length - 1}
+          />
+        ))}
+      </SortableContext>
+
+      <DragOverlay dropAnimation={{ duration: 200, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' }}>
+        {activeItem ? <OverlayItem item={activeItem} /> : null}
+      </DragOverlay>
+    </DndContext>
+  )
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
+
+interface ChecklistContentProps {
+  tripId: string
+  initialItems: ChecklistItem[]
 }
 
 export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps) {
@@ -88,18 +304,18 @@ export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps
   const [addOpen, setAddOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
+
   const [form, setForm] = useState({
-    title: '',
+    title:    '',
     category: 'custom' as ChecklistCategory,
-    priority: 'medium' as Priority,
     due_date: '',
-    notes: '',
+    notes:    '',
   })
   const set = (k: string, v: string | null) => setForm(f => ({ ...f, [k]: v ?? '' }))
 
   const total = items.length
-  const done = items.filter(i => i.completed).length
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0
+  const done  = items.filter(i => i.completed).length
+  const pct   = total > 0 ? Math.round((done / total) * 100) : 0
 
   async function toggleItem(id: string, completed: boolean) {
     await supabase.from('checklist_items').update({ completed }).eq('id', id)
@@ -117,17 +333,16 @@ export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps
     setSaving(true)
     try {
       const { data, error } = await supabase.from('checklist_items').insert({
-        trip_id: tripId,
-        title: form.title,
-        category: form.category,
-        priority: form.priority,
-        due_date: form.due_date || null,
-        notes: form.notes || null,
-        order_index: items.length,
+        trip_id:     tripId,
+        title:       form.title,
+        category:    form.category,
+        due_date:    form.due_date || null,
+        notes:       form.notes || null,
+        order_index: items.filter(i => i.category === form.category).length,
       }).select().single()
       if (error) throw error
       setItems(prev => [...prev, data])
-      setForm({ title: '', category: 'custom', priority: 'medium', due_date: '', notes: '' })
+      setForm({ title: '', category: 'custom', due_date: '', notes: '' })
       setAddOpen(false)
       toast.success('Item added!')
     } catch (err: unknown) {
@@ -137,31 +352,58 @@ export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps
     }
   }
 
+  function handleReorder(category: ChecklistCategory, reordered: ChecklistItem[]) {
+    // Update order_index on the reordered slice, keep other categories intact
+    const updated = reordered.map((item, idx) => ({ ...item, order_index: idx }))
+    setItems(prev => [
+      ...prev.filter(i => i.category !== category),
+      ...updated,
+    ])
+    // Fire-and-forget persist
+    updated.forEach(item => {
+      supabase
+        .from('checklist_items')
+        .update({ order_index: item.order_index })
+        .eq('id', item.id)
+        .then(({ error }) => { if (error) console.error('Order persist failed:', error) })
+    })
+  }
+
   const categories: ChecklistCategory[] = ['documents', 'packing', 'custom']
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-xl font-bold">Pre-Trip Checklist</h2>
-          <p className="text-sm text-muted-foreground">{done} of {total} completed</p>
+    <div className="px-5 py-4 max-w-3xl mx-auto">
+
+      {/* Section header */}
+      <div className="flex items-start justify-between mb-4 gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-1.5 rounded-lg bg-primary/8 text-primary">
+            <CheckSquare className="h-4 w-4" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-base leading-tight">Checklist</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Prepare everything before departure · {done}/{total} done</p>
+          </div>
         </div>
-        <Button onClick={() => setAddOpen(true)} className="gap-2">
+        <Button onClick={() => setAddOpen(true)} size="sm" className="gap-1.5 shrink-0">
           <Plus className="h-4 w-4" /> Add Task
         </Button>
       </div>
 
       {/* Progress bar */}
-      <Card className="mb-6">
-        <CardContent className="pt-5 pb-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-semibold">Overall Progress</span>
-            <span className={`text-2xl font-bold ${pct === 100 ? 'text-emerald-500' : 'text-foreground'}`}>{pct}%</span>
-          </div>
-          <Progress value={pct} className="h-3" />
-          <div className="flex justify-between text-xs text-muted-foreground mt-2">
-            <span>{done} done</span>
-            <span>{total - done} remaining</span>
+      <Card className="mb-4">
+        <CardContent className="px-4 py-3">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Progress value={pct} className="h-2" />
+              <div className="flex justify-between text-xs text-muted-foreground mt-1.5">
+                <span>{done} done</span>
+                <span>{total - done} remaining</span>
+              </div>
+            </div>
+            <span className={cn('text-2xl font-bold tabular-nums', pct === 100 ? 'text-emerald-500' : 'text-foreground')}>
+              {pct}%
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -171,7 +413,7 @@ export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps
           {categories.map(cat => {
             const Icon = CATEGORY_ICONS[cat]
             const catItems = items.filter(i => i.category === cat)
-            const catDone = catItems.filter(i => i.completed).length
+            const catDone  = catItems.filter(i => i.completed).length
             return (
               <TabsTrigger key={cat} value={cat} className="flex-1 gap-1.5">
                 <Icon className="h-3.5 w-3.5" />
@@ -186,9 +428,9 @@ export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps
 
         {categories.map(cat => {
           const catItems = items.filter(i => i.category === cat)
-          const catDone = catItems.filter(i => i.completed).length
-          const catPct = catItems.length > 0 ? Math.round((catDone / catItems.length) * 100) : 0
-          const Icon = CATEGORY_ICONS[cat]
+          const catDone  = catItems.filter(i => i.completed).length
+          const catPct   = catItems.length > 0 ? Math.round((catDone / catItems.length) * 100) : 0
+          const Icon     = CATEGORY_ICONS[cat]
 
           return (
             <TabsContent key={cat} value={cat}>
@@ -219,16 +461,15 @@ export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps
                       </Button>
                     </div>
                   ) : (
-                    <div className="divide-y divide-border">
-                      {catItems.map(item => (
-                        <ChecklistItem
-                          key={item.id}
-                          item={item}
-                          onToggle={toggleItem}
-                          onDelete={deleteItem}
-                        />
-                      ))}
-                    </div>
+                    <>
+                      <DragHint />
+                      <CategoryDndList
+                        items={catItems}
+                        onToggle={toggleItem}
+                        onDelete={deleteItem}
+                        onReorder={reordered => handleReorder(cat, reordered)}
+                      />
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -253,29 +494,16 @@ export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps
                 onKeyDown={e => e.key === 'Enter' && addItem()}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Category</Label>
-                <Select value={form.category} onValueChange={v => set('category', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="documents">📄 Documents</SelectItem>
-                    <SelectItem value="packing">🧳 Packing</SelectItem>
-                    <SelectItem value="custom">✅ Custom</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Priority</Label>
-                <Select value={form.priority} onValueChange={v => set('priority', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="high">🔴 High</SelectItem>
-                    <SelectItem value="medium">🟡 Medium</SelectItem>
-                    <SelectItem value="low">🟢 Low</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Select value={form.category} onValueChange={v => set('category', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="documents">📄 Documents</SelectItem>
+                  <SelectItem value="packing">🧳 Packing</SelectItem>
+                  <SelectItem value="custom">✅ Custom</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Due Date</Label>
