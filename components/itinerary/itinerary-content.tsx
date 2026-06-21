@@ -31,7 +31,7 @@ import { DragHint } from '@/components/shared/drag-hint'
 import { toast } from 'sonner'
 import {
   Plus, Calendar, Trash2, Loader2, MapPin,
-  ExternalLink, Pencil, Clock, GripVertical, MoreVertical,
+  ExternalLink, Pencil, Clock, GripVertical, MoreVertical, ChevronDown,
 } from 'lucide-react'
 import { parseISO, addDays, format } from 'date-fns'
 import { cn } from '@/lib/utils'
@@ -116,8 +116,19 @@ interface CardContentProps {
 }
 
 function ActivityCardInner({ item, currency, isLast, overlay, onEdit, onDelete }: CardContentProps) {
+  const [expanded, setExpanded] = useState(false)
   const mapsUrl = getMapsUrl(item)
   const icon = ITINERARY_TYPE_ICONS[item.type] ?? '📌'
+
+  // Card is expandable when it has detail content that gets truncated in the compact view
+  const hasExpandable = !!(
+    item.description ||
+    (item.formatted_address && item.formatted_address !== item.location_name)
+  )
+
+  function handleCardClick() {
+    if (!overlay && hasExpandable) setExpanded(v => !v)
+  }
 
   return (
     <>
@@ -141,12 +152,16 @@ function ActivityCardInner({ item, currency, isLast, overlay, onEdit, onDelete }
       </div>
 
       {/* Content card */}
-      <div className={cn(
-        'flex-1 min-w-0 rounded-xl border px-3 py-2.5 transition-colors',
-        overlay
-          ? 'bg-background border-border shadow-xl'
-          : 'bg-muted/30 border-border/40 hover:border-border/70',
-      )}>
+      <div
+        onClick={handleCardClick}
+        className={cn(
+          'flex-1 min-w-0 rounded-xl border px-3 py-2.5 transition-colors',
+          overlay
+            ? 'bg-background border-border shadow-xl'
+            : 'bg-muted/30 border-border/40 hover:border-border/70',
+          !overlay && hasExpandable && 'cursor-pointer select-none',
+        )}
+      >
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             {/* Title row */}
@@ -164,33 +179,72 @@ function ActivityCardInner({ item, currency, isLast, overlay, onEdit, onDelete }
               </Badge>
             </div>
 
-            {/* Location */}
+            {/* Location — remove truncate when expanded */}
             {item.location_name && (
-              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 truncate">
+              <p className={cn(
+                'text-xs text-muted-foreground mt-1 flex items-center gap-1',
+                !expanded && 'truncate',
+              )}>
                 <MapPin className="h-3 w-3 flex-shrink-0 text-primary/60" />
                 {item.location_name}
               </p>
             )}
             {item.formatted_address && item.formatted_address !== item.location_name && (
-              <p className="text-[11px] text-muted-foreground/60 mt-0.5 truncate pl-4">
+              <p className={cn(
+                'text-[11px] text-muted-foreground/60 mt-0.5 pl-4',
+                !expanded ? 'truncate' : 'break-words',
+              )}>
                 {item.formatted_address}
               </p>
             )}
 
-            {/* Notes */}
+            {/* Notes — show 2-line preview collapsed, full text expanded */}
             {item.description && (
-              <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic">{item.description}</p>
+              <p className={cn(
+                'text-xs text-muted-foreground mt-1 italic',
+                !expanded ? 'line-clamp-2' : 'break-words whitespace-pre-wrap',
+              )}>
+                {item.description}
+              </p>
             )}
 
             {/* Cost */}
             {item.cost > 0 && (
               <p className="text-xs text-muted-foreground mt-1">{formatCurrency(item.cost, currency)}</p>
             )}
+
+            {/* Expanded: inline Edit / Maps shortcuts */}
+            {expanded && !overlay && (
+              <div className="mt-2.5 pt-2 border-t border-border/30 flex items-center gap-3">
+                <button
+                  className="text-xs text-primary hover:text-primary/70 flex items-center gap-1 transition-colors"
+                  onClick={e => { e.stopPropagation(); onEdit?.(item) }}
+                >
+                  <Pencil className="h-3 w-3" />
+                  Edit
+                </button>
+                {mapsUrl && (
+                  <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Maps
+                  </a>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Actions (hidden in overlay) */}
+          {/* Actions (hidden in overlay) — stopPropagation prevents card expand toggle */}
           {!overlay && (
-            <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5">
+            <div
+              className="flex items-center gap-0.5 flex-shrink-0 mt-0.5"
+              onClick={e => e.stopPropagation()}
+            >
               {/* Desktop: Maps link + Edit + Delete (hover-revealed) */}
               {mapsUrl && (
                 <a href={mapsUrl} target="_blank" rel="noopener noreferrer" title="Open in Google Maps" className="hidden md:inline-flex">
@@ -246,6 +300,16 @@ function ActivityCardInner({ item, currency, isLast, overlay, onEdit, onDelete }
             </div>
           )}
         </div>
+
+        {/* Expand/collapse indicator — only when there's expandable content */}
+        {!overlay && hasExpandable && (
+          <div className="flex justify-center mt-1.5 -mb-0.5">
+            <ChevronDown className={cn(
+              'h-3.5 w-3.5 text-muted-foreground/25 transition-transform duration-200',
+              expanded && 'rotate-180 text-muted-foreground/50',
+            )} />
+          </div>
+        )}
       </div>
     </>
   )

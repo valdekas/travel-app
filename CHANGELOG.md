@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-06-21 (Itinerary — activity detail expand-in-place)
+
+### Added — `components/itinerary/itinerary-content.tsx`
+
+**Problem:** Activity cards showed truncated previews (`line-clamp-1` description, `truncate` location/address) with no way to read the full content without clicking Edit. On mobile the text was frequently cut off with no affordance to reveal it.
+
+**Fix — expand-in-place on card click:**
+
+- `ActivityCardInner` now tracks a local `expanded` boolean state
+- The content card div is clickable (`cursor-pointer`) when `hasExpandable` is true (item has a description or a formatted address distinct from the location name)
+- **Collapsed (default):** description shows `line-clamp-2` (up from `line-clamp-1` for better preview); location/address stay `truncate`
+- **Expanded:** `truncate` and `line-clamp` are removed — text wraps fully with `break-words`; a separator row shows inline "Edit" and "Maps" shortcut links for quick access without re-opening the three-dot menu
+- **Chevron indicator:** a `ChevronDown` icon is centered below the card content when `hasExpandable`. Rotates 180° when expanded. Acts as a visual affordance that the card is tappable.
+- **Action button isolation:** the actions wrapper div captures `onClick` with `e.stopPropagation()` so tapping Edit/Delete/⋯ never accidentally toggles the expand state; same for the inline Maps `<a>` link in the expanded section
+- **Drag overlay:** no expand in overlay mode (`overlay` prop short-circuits all expand logic) — dragging a card does not trigger expansion
+
+**Mobile specifically:** with `truncate` and `line-clamp` removed in expanded state and `break-words` applied, the description text is guaranteed to wrap on any screen width. The chevron is always visible, making the tap target discoverable without hover.
+
+**Tested with:** "walk on the beach" activity (description: "very nice walk and ride over the beach with bikes") — full text now readable both in the 2-line preview and in the expanded state.
+
+---
+
 ## 2026-06-21 (Pre-mobile readiness — avatars bucket + storage utility decoupling)
 
 ### Fixed — `supabase/migrations/011_avatars_storage.sql`, `lib/utils/journal-photos.ts`, `components/journal/journal-content.tsx`, `components/settings/account-settings.tsx`

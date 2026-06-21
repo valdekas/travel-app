@@ -58,6 +58,7 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 
 * [x] Drag & Drop activities — handle-only, per-day, persisted
 * [x] Mobile DnD discoverability — handle always visible on mobile, DragHint banner (once per device)
+* [x] Activity detail expand — click card body to expand full description/address; chevron indicator; inline Edit + Maps shortcuts; `line-clamp-2` compact preview; full text on mobile (no truncation when expanded)
 * [ ] Travel time between activities
 * [ ] Activity photos
 * [ ] Timeline polish
