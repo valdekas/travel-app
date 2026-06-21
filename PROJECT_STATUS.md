@@ -1,6 +1,6 @@
 # Travel Planner Pro — Project Status
 
-> Last updated: 2026-06-15
+> Last updated: 2026-06-18
 > Build status: **PASSING** — all routes compile cleanly with zero TypeScript errors.
 
 ---
@@ -73,6 +73,8 @@ All core features are **complete and building successfully**.
 - [x] **Calendar** — custom monthly grid using `eachDayOfInterval`; trip spans rendered as coloured divs; next trip countdown sidebar
 - [x] **Search** — full-text filter across trips, places, and wishlist; tabs (All/Trips/Places/Wishlist); status, priority, and location-type filters
 - [x] **Dark / light mode** — system preference default, manual toggle in topbar; oklch-based violet/indigo theme variables
+- [x] **Premium world map interactions** — custom pan/zoom hook using native Pointer Events API + requestAnimationFrame; inertia scrolling with exponential velocity decay (friction 0.91), 40-50% reduced pan sensitivity, log-scale smooth wheel zoom, pinch-zoom on mobile, double-click zoom, smooth animated reset; all at 60 FPS via direct SVG transform attributes (no React re-renders)
+- [x] **Visited Countries — subregion tracking** — full state/region/province support for US (51), Canada (13), Australia (8), Brazil (27), India (36), Germany (16), Spain (17), Italy (20), UK (13), France (18); separate `visited_regions` DB table; country cards expand to show region picker with search, progress bar, and per-region toggles; counting rule: visiting one US state does NOT count the whole country; auto-marks country fully visited when last region is toggled; partial-visited countries shown in distinct colour on dashboard world map with tooltip listing visited regions; dashboard stats card shows "Regions & States" total
 
 ---
 
@@ -121,8 +123,9 @@ components/
 │   └── dashboard-shell.tsx           Desktop sidebar + mobile Sheet + Topbar
 ├── dashboard/
 │   ├── dashboard-content.tsx
+│   ├── world-map-widget.tsx          Interactive world map (premium pan/zoom, visited/partial countries)
 │   ├── countdown-card.tsx
-│   ├── stats-grid.tsx
+│   ├── stats-grid.tsx                Regions & States stat card
 │   └── trip-card.tsx
 ├── trips/
 │   ├── trips-list-content.tsx
@@ -135,12 +138,14 @@ components/
 ├── itinerary/itinerary-content.tsx
 ├── budget/budget-content.tsx
 ├── journal/journal-content.tsx
+├── visited/visited-countries-content.tsx  State/region picker, progress bars, 4-stat header
 ├── wishlist/wishlist-content.tsx
 ├── calendar/calendar-content.tsx
 └── search/search-content.tsx
 
 lib/
-├── types/index.ts                    All TS interfaces and union types
+├── types/index.ts                    All TS interfaces and union types (incl. VisitedRegion)
+├── data/subregions.ts                ISO 3166-2 region data for 10 countries (US/CA/AU/BR/IN/DE/ES/IT/GB/FR)
 ├── utils/index.ts                    cn, formatDate, daysUntil, tripDuration,
 │                                     formatCurrency, getCountryFlag, getTripStatusColor,
 │                                     getPriorityColor, buildLocationHierarchy,
@@ -152,14 +157,15 @@ lib/
     └── middleware.ts                 Session refresh + route protection
 
 supabase/migrations/
-└── 001_initial_schema.sql            Full schema + RLS + updated_at triggers
+├── 001_initial_schema.sql            Full schema + RLS + updated_at triggers
+└── 003_visited_regions.sql           visited_regions table + RLS (run manually in Supabase SQL Editor)
 ```
 
 ---
 
 ## Database Schema
 
-Eight tables, all with Row Level Security enabled. Every user can only see their own data.
+Ten tables, all with Row Level Security enabled. Every user can only see their own data.
 
 ### `trips`
 | Column | Type | Notes |
@@ -253,6 +259,30 @@ Hierarchical — `parent_id` self-references to build region → city → place 
 | priority | TEXT | low / medium / high |
 | converted_to_trip_id | UUID FK → trips | nullable, set when wishlist → trip |
 
+### `visited_countries`
+| Column | Type | Notes |
+|---|---|---|
+| user_id | UUID FK → auth.users | |
+| country_code | TEXT | ISO 3166-1 alpha-2 |
+| country_name | TEXT | |
+| continent | TEXT | |
+| first_visit_date, last_visit_date | DATE | optional |
+| visit_count | INTEGER | default 1 |
+
+### `visited_regions`
+| Column | Type | Notes |
+|---|---|---|
+| user_id | UUID FK → auth.users | |
+| country_code | TEXT | e.g. "US" |
+| country_name | TEXT | |
+| region_code | TEXT | ISO 3166-2 code e.g. "US-CA" |
+| region_name | TEXT | e.g. "California" |
+| region_type | TEXT | state / province / territory / region / etc. |
+| first_visit_date, last_visit_date | DATE | optional |
+| visit_count | INTEGER | default 1 |
+| notes, favorite_city | TEXT | optional |
+| UNIQUE | (user_id, country_code, region_code) | |
+
 ---
 
 ## Routes
@@ -276,6 +306,7 @@ Hierarchical — `parent_id` self-references to build region → city → place 
 | `/calendar` | Dynamic | Monthly calendar with trip spans |
 | `/search` | Dynamic | Full-text search across all data |
 | `/journal` | Dynamic | All journal entries across all trips |
+| `/visited` | Dynamic | Visited countries + state/region tracking |
 
 ---
 
@@ -286,6 +317,7 @@ Hierarchical — `parent_id` self-references to build region → city → place 
 - [ ] Enable Email and Google auth providers in Supabase Authentication settings
 - [ ] Set Google OAuth redirect URL: `https://<your-domain>/auth/callback`
 - [ ] Run `supabase/migrations/001_initial_schema.sql` in the Supabase SQL Editor
+- [ ] Run `supabase/migrations/003_visited_regions.sql` in the Supabase SQL Editor (adds visited_regions table)
 - [ ] Populate `.env.local` with real credentials (see "How to Run" below)
 
 ### Nice-to-have / future features

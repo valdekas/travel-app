@@ -21,7 +21,35 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-google-maps-key
 1. Create a project at [supabase.com](https://supabase.com)
 2. Enable **Email** and **Google** providers in Authentication > Providers
 3. For Google OAuth, set your redirect URL to: `https://yourapp.com/auth/callback`
-4. Run the SQL migration in `supabase/migrations/001_initial_schema.sql` in the SQL Editor
+4. Run all SQL migrations in order via the SQL Editor (or use `apply-migration.mjs`):
+   - `supabase/migrations/001_initial_schema.sql`
+   - `supabase/migrations/002_visited_countries.sql`
+   - `supabase/migrations/003_visited_regions.sql`
+   - `supabase/migrations/004_trip_destination.sql`
+   - `supabase/migrations/005_itinerary_location.sql`
+   - `supabase/migrations/006_user_settings.sql`
+   - `supabase/migrations/007_journal_improvements.sql`
+   - `supabase/migrations/008_journal_photos_storage.sql`
+
+### 3a. Supabase Storage (Journal Photos)
+
+Migration `008_journal_photos_storage.sql` automatically:
+- Creates the `journal-photos` Storage bucket (public, 10 MB limit per file)
+- Adds RLS policies so users can only upload/delete from their own folder
+
+**Storage path structure:** `{userId}/{tripId}/{timestamp}_{random}.{ext}`
+
+**Supported formats:** JPEG, PNG, WebP, GIF, HEIC/HEIF
+
+**Security:**
+- Public read (photos render via URL in `journal_entries.photos TEXT[]`)
+- Upload restricted: authenticated users can only write to `{their_uid}/...`
+- Delete restricted: authenticated users can only delete their own files
+
+To apply migrations programmatically (requires Supabase personal access token):
+```bash
+SUPABASE_ACCESS_TOKEN=sbp_xxx node apply-migration.mjs supabase/migrations/008_journal_photos_storage.sql
+```
 
 ### 4. Run Development Server
 ```bash
