@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-06-22 (Fix Google OAuth redirect URL)
+
+### Fixed — `app/(auth)/auth/login/page.tsx`, `.env.local`
+
+**Problem:** `redirectTo` in `signInWithOAuth` was built from `location.origin` (the browser's current origin). When testers accessed the site via IP (`http://38.242.252.59:3001`), Google's OAuth callback redirected back to the IP instead of `https://travel365.live`, causing a redirect URI mismatch error since only the domain is registered in Google Cloud Console.
+
+**Fix:**
+- Added `NEXT_PUBLIC_SITE_URL=https://travel365.live` to `.env.local`
+- Changed redirect construction to use the env var with `location.origin` as fallback for local development:
+  ```ts
+  // before
+  redirectTo: `${location.origin}/auth/callback`
+  // after
+  redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || location.origin}/auth/callback`
+  ```
+- Production always uses `travel365.live`; local dev (`localhost:3001`) continues to work automatically
+
+---
+
 ## 2026-06-22 (Global Travel Journal redesign)
 
 ### Changed — `app/(dashboard)/journal/page.tsx`, `components/global-journal/global-journal-content.tsx` (new)

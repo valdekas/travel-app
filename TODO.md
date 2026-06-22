@@ -160,6 +160,7 @@ Ideas that should NOT be implemented yet.
 
 * [x] Bug fix — Hero image missing on trip cards: switched card from `<img>` to `<Image>` (Next.js optimizer/caching), replaced DOM-mutation onError with React state three-level fallback (cover_photo → country image → global fallback)
 * [x] Bug fix — "Planning" badge shown on completed/active trips: all 5 status-display sites now use getEffectiveStatus() — Dashboard Recent Trips, trip detail Planning pill, My Trips Planning filter, Search badges, Command Palette badge
+* [x] Bug fix — Google OAuth redirectTo now uses NEXT_PUBLIC_SITE_URL env var (falls back to location.origin for local dev), ensuring production always redirects to travel365.live regardless of IP vs domain access
 * [x] Bug fix — World Map tooltip/fill used raw trip.status instead of getEffectiveStatus(): date-completed trips now correctly show as visited in country tooltip and map highlight (both CountryTooltip and tripVisitedCodes memo)
 * [x] Bug fix — Places tab handleReorder logic inversion: reordering within "To Visit" no longer corrupts the "Visited" group and vice versa
 * [x] Global Travel Journal redesign — replaced basic 20-entry list with a premium memories hub: featured memory hero card (auto-picks best photo), 2-col memory grid, stats bar (entries/trips/photos/favorites), search + filter pills (All/Favorites/With Photos), "Memories by Trip" section, beautiful gradient placeholders for entries without photos, polished empty state; now fetches all entries (no 20-item cap)
