@@ -827,3 +827,23 @@ Title → Date & Time → Mood → Linked Location → Journal Entry → Photos 
 
 ### Fixed
 - Sidebar Settings link now shows active highlight when on any `/settings/*` route
+
+---
+
+## 2026-06-22 (Bug fix — hero image missing on trip cards)
+
+### Fixed — `components/dashboard/trip-card.tsx`
+
+**Root cause (two compounding issues):**
+
+1. **Broken `onError` fallback cycle**: When `cover_photo` is null, `getDestinationImage()` returns the country image (e.g., Spain URL) as the primary `imgSrc`. If that URL fails, the `onError` handler called `getCityOrCountryImage(trip.country)` which returned the **same Spain URL**. The `img.src !== fallback` guard was then `false`, so the final `FALLBACK_IMAGE` was never attempted — the image stayed broken permanently.
+
+2. **No server-side image caching on cards**: The trip detail shell uses Next.js `<Image>` (which caches images server-side via the Next.js image optimizer). If a `cover_photo` URL was valid when the detail was last visited, the cached version still served. Cards used a plain `<img>` tag making a direct browser request to the (now-broken) URL, bypassing the cache.
+
+**Fix applied:**
+- Replaced `<img>` with Next.js `<Image fill>` in `TripCard` — now consistent with `TripDetailShell`, benefits from server-side optimization and caching
+- Replaced the DOM-mutation `onError` handler with a React state-based three-level fallback:
+  1. `primarySrc` = `getDestinationImage(trip)` (uses `cover_photo` if valid, else city/country auto-image)
+  2. On error → `countrySrc` = `getCityOrCountryImage(trip.country ?? '')` (null-safe)
+  3. On error → `fallbackSrc` = generic travel FALLBACK_IMAGE
+- Null-safe: `trip.country ?? ''` prevents a `TypeError` crash if `country` is null at runtime

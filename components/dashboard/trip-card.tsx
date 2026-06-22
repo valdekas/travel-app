@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Trip } from '@/lib/types'
 import { daysUntil, formatDate, tripDuration, getDestinationImage, getCityOrCountryImage } from '@/lib/utils'
@@ -29,7 +30,12 @@ export function TripCard({ trip }: TripCardProps) {
 
   const days = daysUntil(trip.start_date)
   const duration = tripDuration(trip.start_date, trip.end_date)
-  const imgSrc = getDestinationImage(trip)
+
+  // Three-level fallback: cover_photo/auto-url → country image → global fallback
+  const primarySrc  = getDestinationImage(trip)
+  const countrySrc  = getCityOrCountryImage(trip.country ?? '')
+  const fallbackSrc = 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1200&q=80'
+  const [imgSrc, setImgSrc] = useState(primarySrc)
 
   const countdownColor =
     days === null || days < 0 ? 'bg-slate-800/60' :
@@ -60,16 +66,16 @@ export function TripCard({ trip }: TripCardProps) {
           transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
           className="relative overflow-hidden rounded-2xl h-52 cursor-pointer shadow-md shadow-slate-200/60 dark:shadow-black/20 hover:shadow-xl hover:shadow-slate-300/50 dark:hover:shadow-black/40 transition-shadow duration-300"
         >
-          {/* Background image */}
-          <img
+          {/* Background image — three-level fallback via React state */}
+          <Image
             src={imgSrc}
             alt={trip.name}
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 ease-out group-hover/card:scale-[1.08]"
-            onError={e => {
-              const fallback = getCityOrCountryImage(trip.country)
-              if ((e.target as HTMLImageElement).src !== fallback) {
-                (e.target as HTMLImageElement).src = fallback
-              }
+            fill
+            sizes="(max-width: 640px) 100vw, 50vw"
+            className="object-cover transition-transform duration-500 ease-out group-hover/card:scale-[1.08]"
+            onError={() => {
+              if (imgSrc !== countrySrc) setImgSrc(countrySrc)
+              else if (imgSrc !== fallbackSrc) setImgSrc(fallbackSrc)
             }}
           />
 

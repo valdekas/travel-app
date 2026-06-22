@@ -158,6 +158,8 @@ Ideas that should NOT be implemented yet.
 
 # ✅ Done This Sprint
 
+* [x] Bug fix — Hero image missing on trip cards: switched card from `<img>` to `<Image>` (Next.js optimizer/caching), replaced DOM-mutation onError with React state three-level fallback (cover_photo → country image → global fallback)
+
 * [x] Google Places Autocomplete
 * [x] Automatic destination images
 * [x] Automatic country detection
