@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Trip } from '@/lib/types'
-import { daysUntil, formatDate, formatCurrency, tripDuration } from '@/lib/utils'
+import { daysUntil, formatDate, formatCurrency, tripDuration, getEffectiveStatus } from '@/lib/utils'
 import { FlagImg } from '@/components/ui/flag-img'
 import { NUMERIC_TO_A2, COUNTRY_COORDS, resolveA2 } from '@/lib/utils/country-codes'
 import {
@@ -246,7 +246,7 @@ function FlightPath({ from, to, index }: { from: [number, number]; to: [number, 
 interface CountryTip { name: string; trips: Trip[]; x: number; y: number; iso2?: string; partialRegions?: string[] }
 function CountryTooltip({ data }: { data: CountryTip }) {
   const upcoming = data.trips.filter(t => t.start_date && new Date(t.start_date) >= new Date())
-  const visited  = data.trips.filter(t => t.status === 'completed')
+  const visited  = data.trips.filter(t => getEffectiveStatus(t) === 'completed')
   return (
     <motion.div initial={{ opacity: 0, y: 6, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 4, scale: 0.96 }} transition={{ duration: 0.13 }}
@@ -715,7 +715,7 @@ export function WorldMapWidget({
   }, [trips])
 
   const tripVisitedCodes = useMemo(() =>
-    new Set(trips.filter(t => t.status === 'completed').map(t => resolveA2(t.country_code, t.country)).filter(Boolean) as string[]),
+    new Set(trips.filter(t => getEffectiveStatus(t) === 'completed').map(t => resolveA2(t.country_code, t.country)).filter(Boolean) as string[]),
   [trips])
 
   const manuallyVisited = useMemo(() => new Set(visitedCountryCodes), [visitedCountryCodes])

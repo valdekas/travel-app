@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-06-22 (Bug fixes — RC Audit: World Map tooltip + Places reorder)
+
+### Fixed — `components/dashboard/world-map-widget.tsx`
+
+**Bug:** Country tooltip's "Visited" section used `t.status === 'completed'` (raw DB field) instead of `getEffectiveStatus(t)`. Trips that are date-completed (end_date in the past) but whose DB `status` column still reads `'upcoming'` would not appear in the tooltip's Visited list, and the country would not be highlighted as visited on the map.
+
+**Fix:** Added `getEffectiveStatus` to import from `@/lib/utils` and replaced both occurrences:
+- Line 249 (`CountryTooltip` visited filter): `t.status === 'completed'` → `getEffectiveStatus(t) === 'completed'`
+- Line 718 (`tripVisitedCodes` memo — drives country fill colour on the SVG map): same replacement
+
+### Fixed — `components/trips/places-content.tsx`
+
+**Bug:** `handleReorder()` had an inverted condition when merging the reordered group back into the full location list:
+```ts
+// WRONG — when group === 'unvisited', kept only the visited items (opposite group)
+...prev.filter(l => group === 'unvisited' ? l.visited : !l.visited)
+```
+Reordering within the "To Visit" group would silently discard those items and keep only the already-Visited items (and vice versa).
+
+**Fix:** Condition inverted to keep the *other* group (the one that was not reordered):
+```ts
+...prev.filter(l => group === 'unvisited' ? !l.visited : l.visited)
+```
+
+---
+
 ## 2026-06-21 (Itinerary — day collapse/expand + day completed toggle)
 
 ### Added — `components/itinerary/itinerary-content.tsx`, `lib/types/index.ts`, `supabase/migrations/012_itinerary_day_completed.sql`

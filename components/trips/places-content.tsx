@@ -621,7 +621,7 @@ export function PlacesContent({ trip, initialLocations }: PlacesContentProps) {
   function handleReorder(group: 'unvisited' | 'visited', reordered: Location[]) {
     const updated = reordered.map((loc, idx) => ({ ...loc, order_index: idx }))
     setLocations(prev => [
-      ...prev.filter(l => group === 'unvisited' ? l.visited : !l.visited),
+      ...prev.filter(l => group === 'unvisited' ? !l.visited : l.visited),
       ...updated,
     ])
     updated.forEach(loc => {

@@ -160,6 +160,8 @@ Ideas that should NOT be implemented yet.
 
 * [x] Bug fix — Hero image missing on trip cards: switched card from `<img>` to `<Image>` (Next.js optimizer/caching), replaced DOM-mutation onError with React state three-level fallback (cover_photo → country image → global fallback)
 * [x] Bug fix — "Planning" badge shown on completed/active trips: all 5 status-display sites now use getEffectiveStatus() — Dashboard Recent Trips, trip detail Planning pill, My Trips Planning filter, Search badges, Command Palette badge
+* [x] Bug fix — World Map tooltip/fill used raw trip.status instead of getEffectiveStatus(): date-completed trips now correctly show as visited in country tooltip and map highlight (both CountryTooltip and tripVisitedCodes memo)
+* [x] Bug fix — Places tab handleReorder logic inversion: reordering within "To Visit" no longer corrupts the "Visited" group and vice versa
 
 * [x] Google Places Autocomplete
 * [x] Automatic destination images
