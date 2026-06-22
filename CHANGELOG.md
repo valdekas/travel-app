@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-06-22 (Fix Google OAuth PKCE code_verifier wiped by middleware)
+
+### Fixed — `lib/supabase/middleware.ts`
+
+**Root cause:** `updateSession()` created a Supabase server client and called `supabase.auth.getUser()` on every request, including `/auth/callback`. When `getUser()` finds no active session, `@supabase/ssr` internally clears stale auth cookies — including the PKCE `code_verifier` set by `signInWithOAuth`. By the time the route handler called `exchangeCodeForSession(code)`, the `code_verifier` was gone, producing the error: *"PKCE code verifier not found in storage."*
+
+**Fix:** Route path checks are now performed before the Supabase client is instantiated. When `pathname === '/auth/callback'`, the middleware returns `NextResponse.next({ request })` immediately — no Supabase client is created, `getUser()` never runs, and all cookies (including `code_verifier`) are forwarded to the route handler untouched. The now-unreachable `!isCallbackRoute` guard on the logged-in-user redirect was also removed.
+
+---
+
+## 2026-06-22 (Fix Google OAuth bad_oauth_state + post-login redirect)
+
+### Fixed — `lib/supabase/middleware.ts`, `app/(auth)/auth/callback/route.ts`, `app/(auth)/auth/login/page.tsx`
+
+**Root causes identified:**
+
+**Issue 1 — `bad_oauth_state` on first OAuth attempt:**
+Supabase's browser client stores the PKCE `code_verifier` in a cookie on whatever domain the user is currently on. If the user accessed the site via the raw IP (`38.242.252.59:3001`), the cookie was set on the IP domain. When Google's OAuth flow completed and our callback ran on `travel365.live`, the browser didn't send the IP-domain cookie → Supabase said "state not found." Secondary cause: the middleware matched `/auth/callback` as an auth route and could redirect logged-in users to `/dashboard` before `exchangeCodeForSession` ran.
+
+**Issue 2 — Redirects to landing page after successful login:**
+The callback route used `origin` from `new URL(request.url)`. Behind Nginx, Next.js sees the internal `http://localhost:3001` origin, so the redirect target became `http://localhost:3001/dashboard` — unreachable from the browser, which caused the browser to fall back to the landing page.
+
+**Fixes:**
+
+`lib/supabase/middleware.ts`:
+- Added raw-IP → domain redirect (301) at the top of `updateSession`. If `NEXT_PUBLIC_SITE_URL` is set and the incoming hostname is a raw IP, redirect to the configured domain. This ensures OAuth PKCE cookies are always set on `travel365.live`.
+- Added `isCallbackRoute` guard: `/auth/callback` is now excluded from the "redirect logged-in users away from auth routes" rule, so `exchangeCodeForSession` always runs regardless of existing session state.
+
+`app/(auth)/auth/callback/route.ts`:
+- Redirect base changed from `origin` to `process.env.NEXT_PUBLIC_SITE_URL || origin`. Production always redirects to `travel365.live/dashboard`; local dev falls back to the request origin.
+- OAuth `error` query params (e.g. `bad_oauth_state` redirected here by Supabase) now redirect to `/auth/login?oauth_error=<desc>` instead of producing a blank state.
+- `exchangeCodeForSession` errors now redirect to `/auth/login?oauth_error=<msg>` instead of silently succeeding.
+- Added `next` param support (relative paths only; defaults to `/dashboard`).
+
+`app/(auth)/auth/login/page.tsx`:
+- Added `useEffect` that reads `oauth_error` from search params and shows a `toast.error` so users see a readable explanation when redirected back from a failed OAuth flow.
+
+---
+
 ## 2026-06-22 (Fix Google OAuth redirect URL)
 
 ### Fixed — `app/(auth)/auth/login/page.tsx`, `.env.local`
