@@ -24,68 +24,7 @@ import { RecentActivityWidget } from './recent-activity-widget'
 import { AchievementsWidget } from './achievements-widget'
 import type { RecentActivityItem } from './recent-activity-widget'
 import { getDailyQuote } from '@/lib/data/travel-quotes'
-
-/* ─── Empty-state illustration ───────────────────────────────── */
-function EmptyIllustration() {
-  return (
-    <svg viewBox="0 0 280 210" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-60 mx-auto">
-      <defs>
-        <radialGradient id="eg" cx="40%" cy="38%" r="62%">
-          <stop offset="0%" stopColor="#EEF2FF" />
-          <stop offset="100%" stopColor="#EDE9FE" />
-        </radialGradient>
-      </defs>
-      {/* Outer glow */}
-      <circle cx="140" cy="108" r="98" fill="#EEF2FF" fillOpacity="0.45" />
-      {/* Globe body */}
-      <circle cx="140" cy="108" r="84" fill="url(#eg)" />
-      <circle cx="140" cy="108" r="84" stroke="#C7D2FE" strokeWidth="1.5" />
-      {/* Grid lines clipped to globe */}
-      <clipPath id="gc">
-        <circle cx="140" cy="108" r="84" />
-      </clipPath>
-      <g clipPath="url(#gc)" stroke="#DDD6FE" strokeWidth="1" fill="none">
-        <ellipse cx="140" cy="108" rx="84" ry="7" />
-        <ellipse cx="140" cy="85"  rx="73" ry="6" />
-        <ellipse cx="140" cy="131" rx="73" ry="6" />
-        <ellipse cx="140" cy="62"  rx="50" ry="5" />
-        <ellipse cx="140" cy="154" rx="50" ry="5" />
-        <line x1="140" y1="24" x2="140" y2="192" />
-        <ellipse cx="140" cy="108" rx="46" ry="84" />
-        <ellipse cx="140" cy="108" rx="75" ry="84" />
-      </g>
-      {/* Simplified continent blobs */}
-      <g clipPath="url(#gc)" fill="#C7D2FE" fillOpacity="0.75">
-        <path d="M128 54 Q144 49 155 60 Q163 75 159 96 Q156 116 148 126 Q139 131 132 120 Q124 107 127 89 Q127 70 128 54Z" />
-        <path d="M74 74 Q88 67 96 80 Q102 96 99 116 Q96 129 88 133 Q80 129 75 113 Q71 95 74 74Z" />
-        <path d="M162 51 Q179 47 193 58 Q203 71 199 89 Q196 101 184 105 Q172 106 165 95 Q157 82 160 65 Q160 56 162 51Z" />
-      </g>
-      {/* Dashed flight arc */}
-      <path d="M83 118 Q132 48 196 78" stroke="#818CF8" strokeWidth="2.5" strokeDasharray="7 5" fill="none" />
-      {/* Plane */}
-      <g transform="translate(189,72) rotate(-30)">
-        <path d="M0 0 L15 -4.5 L17 0 L15 4.5Z" fill="#6366F1" />
-        <path d="M8 -2 L3 -8 L6 -8 L10 -2Z" fill="#818CF8" />
-        <path d="M8 2 L3 8 L6 8 L10 2Z" fill="#818CF8" />
-        <path d="M3 -1 L-5 2 L-5 -2Z" fill="#A5B4FC" />
-      </g>
-      {/* Origin pin */}
-      <circle cx="83" cy="118" r="6" fill="#EF4444" />
-      <circle cx="83" cy="118" r="2.5" fill="white" />
-      {/* Destination pin */}
-      <circle cx="196" cy="78" r="8.5" fill="#6366F1" />
-      <circle cx="196" cy="78" r="3" fill="white" />
-      {/* Sparkle crosses */}
-      <g stroke="#A5B4FC" strokeWidth="1.5" strokeLinecap="round">
-        <line x1="48" y1="47" x2="48" y2="55" /><line x1="44" y1="51" x2="52" y2="51" />
-        <line x1="232" y1="142" x2="232" y2="148" /><line x1="229" y1="145" x2="235" y2="145" />
-      </g>
-      <circle cx="42"  cy="152" r="3"   fill="#DDD6FE" />
-      <circle cx="238" cy="68"  r="2.5" fill="#DDD6FE" />
-      <circle cx="58"  cy="174" r="2"   fill="#C7D2FE" />
-    </svg>
-  )
-}
+import { EmptyWorldMap } from './empty-world-map'
 
 /* ─── Props ──────────────────────────────────────────────────── */
 interface DashboardContentProps {
@@ -154,44 +93,67 @@ export function DashboardContent({
   /* ── Empty state (no trips at all) ───────────────────────── */
   if (trips.length === 0) {
     return (
-      <div className="min-h-full bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-8">
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55 }}
-          className="max-w-md w-full text-center"
-        >
-          <EmptyIllustration />
-          <div className="mt-8">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-3">
-              Every unforgettable journey starts with a single trip.
-            </h2>
-            <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
-              Plan destinations, organize your itinerary, manage your budget, keep travel memories and explore the world — all in one place.
+      <div className="min-h-full bg-slate-50 dark:bg-slate-900">
+        <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">
+
+          {/* Section 1 — Greeting + CTA */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="text-center"
+          >
+            <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-3">
+              {dayName} · {dateStr}
+            </p>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+              {greeting()}, {userName.split(' ')[0]} 👋
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400 text-lg mb-6">
+              Where will your next adventure begin?
             </p>
             <Link href="/trips/new">
               <Button className="gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white border-0 shadow-lg shadow-indigo-500/25 rounded-xl h-11 px-7 text-base">
-                <Plus className="h-4 w-4" /> Plan Your First Trip
+                <Plus className="h-4 w-4" /> Create Your First Trip
               </Button>
             </Link>
-            <div className="flex flex-wrap justify-center gap-2 mt-6">
-              {[
-                { emoji: '✈️', label: 'Plan Trips' },
-                { emoji: '🗺️', label: 'Interactive Map' },
-                { emoji: '📅', label: 'Smart Itinerary' },
-                { emoji: '📖', label: 'Travel Journal' },
-              ].map(f => (
-                <span
-                  key={f.label}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-xs text-slate-500 dark:text-slate-400"
-                >
-                  <span>{f.emoji}</span>
-                  <span>{f.label}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        </motion.div>
+          </motion.div>
+
+          {/* Section 2 — Decorative world map */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            <EmptyWorldMap />
+          </motion.div>
+
+          {/* Section 3 — Feature cards */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="grid grid-cols-2 md:grid-cols-5 gap-3"
+          >
+            {[
+              { emoji: '✈️', title: 'Trips',     sub: 'Plan your next adventure' },
+              { emoji: '📅', title: 'Itinerary', sub: 'Organize every day' },
+              { emoji: '📍', title: 'Places',    sub: 'Restaurants, hotels, viewpoints' },
+              { emoji: '💰', title: 'Budget',    sub: 'Track your spending' },
+              { emoji: '📖', title: 'Journal',   sub: 'Save memories forever' },
+            ].map(f => (
+              <div
+                key={f.title}
+                className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 hover:-translate-y-0.5 transition-transform duration-200"
+              >
+                <div className="text-2xl mb-2">{f.emoji}</div>
+                <p className="font-semibold text-sm text-slate-800 dark:text-slate-200">{f.title}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">{f.sub}</p>
+              </div>
+            ))}
+          </motion.div>
+
+        </div>
       </div>
     )
   }

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-06-23 (Premium Dashboard onboarding empty state)
+
+### Changed — `components/dashboard/dashboard-content.tsx`, new `components/dashboard/empty-world-map.tsx`
+
+Replaced the centered illustration + generic text empty state with a full-width three-section onboarding experience shown only when the user has zero trips:
+
+**Section 1 — Greeting:** uses the same time-of-day greeting logic and user name as the normal dashboard. Headline "Where will your next adventure begin?" + "Create Your First Trip" button (same gradient style).
+
+**Section 2 — Decorative world map** (`empty-world-map.tsx`, new component): lightweight `react-simple-maps` `ComposableMap` with all 197 countries in a flat dark-slate color — no zoom, no pan, no tooltips, no markers. Centered overlay text ("No adventures yet" / "Create your first trip to start building your travel map.") and a "🌎 197 countries waiting" pill at the bottom. Subtle CSS-only pulsing inner glow (`animate-pulse` + `box-shadow inset`). Dark card background matching the full world map widget.
+
+**Section 3 — Feature cards:** 5 cards in a responsive grid (2-col mobile / 5-col desktop) — ✈️ Trips, 📅 Itinerary, 📍 Places, 💰 Budget, 📖 Journal — each with emoji, title, subtitle, subtle hover lift.
+
+Staggered `framer-motion` fade-in across all three sections. Normal dashboard (users with trips) is completely unchanged.
+
+---
+
 ## 2026-06-22 (Polish Dashboard empty state)
 
 ### Changed — `components/dashboard/dashboard-content.tsx`
