@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-06-22 (Global Travel Journal redesign)
+
+### Changed — `app/(dashboard)/journal/page.tsx`, `components/global-journal/global-journal-content.tsx` (new)
+
+**Problem:** The global Travel Journal page was a read-only, capped-at-20 list with no interactivity. It showed basic cards with an "Open" button and no way to search, filter, or browse memories across trips.
+
+**Changes:**
+
+- New `GlobalJournalContent` client component (`components/global-journal/global-journal-content.tsx`)
+- Server page now fetches all entries (no limit) with richer joins: `is_favorite`, `time`, `linked_to_trip`, `locations(name, address)`, and all trip metadata. Also fetches all trips in parallel for the grouping section.
+
+**Layout:**
+- **Stats bar** — live counts for entries, trips with memories, photos uploaded, and favorites (never shows 0/placeholder values)
+- **Featured Memory** hero card — auto-selects first entry with a photo, falls back to most recent. Full-bleed image (or deterministic gradient if no photo), dark overlay, title/trip/date/location/mood/favorite badge, "Open memory" pill button. Hidden during active search/filter to avoid visual conflict.
+- **Memory grid** — 2-col on sm+, 1-col on mobile. Each card: photo header or gradient placeholder with travel icon, mood emoji, favorite star, date badge, photo count badge, title, trip flag+name, location, content preview.
+- **Memories by Trip** section — groups entries by trip, shows flag, trip name, country, and memory count badge. Links to the trip's journal tab. Only shown when multiple trips have entries and no search/filter is active.
+- **Search + filter** — live search across title, content, trip name, location, and country. Filter pills: All (n) / ⭐ Favorites / 📷 With Photos.
+- **Empty state** — beautiful centered icon + copy + "Go to My Trips" button.
+- **No-results state** — appears inline when search/filter returns nothing.
+
+**Preserved behavior:** All "Open" links navigate to `/trips/[id]/journal` (trip journal tab).
+
+---
+
 ## 2026-06-22 (Bug fixes — RC Audit: World Map tooltip + Places reorder)
 
 ### Fixed — `components/dashboard/world-map-widget.tsx`

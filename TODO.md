@@ -162,6 +162,7 @@ Ideas that should NOT be implemented yet.
 * [x] Bug fix — "Planning" badge shown on completed/active trips: all 5 status-display sites now use getEffectiveStatus() — Dashboard Recent Trips, trip detail Planning pill, My Trips Planning filter, Search badges, Command Palette badge
 * [x] Bug fix — World Map tooltip/fill used raw trip.status instead of getEffectiveStatus(): date-completed trips now correctly show as visited in country tooltip and map highlight (both CountryTooltip and tripVisitedCodes memo)
 * [x] Bug fix — Places tab handleReorder logic inversion: reordering within "To Visit" no longer corrupts the "Visited" group and vice versa
+* [x] Global Travel Journal redesign — replaced basic 20-entry list with a premium memories hub: featured memory hero card (auto-picks best photo), 2-col memory grid, stats bar (entries/trips/photos/favorites), search + filter pills (All/Favorites/With Photos), "Memories by Trip" section, beautiful gradient placeholders for entries without photos, polished empty state; now fetches all entries (no 20-item cap)
 
 * [x] Google Places Autocomplete
 * [x] Automatic destination images
