@@ -107,8 +107,8 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
                 </button>
               </Link>
               <div className="flex items-center gap-1.5">
-                {/* Planning pill — visible while is_planning is true */}
-                {(trip.is_planning ?? true) && (
+                {/* Planning pill — only shown for upcoming trips still in planning phase */}
+                {(trip.is_planning ?? true) && !['active', 'completed'].includes(getEffectiveStatus(trip)) && (
                   <button
                     onClick={trip.start_date ? handleConfirm : undefined}
                     disabled={!trip.start_date || confirming}

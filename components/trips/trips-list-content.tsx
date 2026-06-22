@@ -39,8 +39,9 @@ export function TripsListContent({ trips }: TripsListContentProps) {
     if (statusFilter === 'all') {
       matchesStatus = true
     } else if (statusFilter === 'planning') {
-      // Planning is a separate dimension — true while is_planning flag is set
-      matchesStatus = (t.is_planning ?? true) && getEffectiveStatus(t) !== 'cancelled'
+      // Planning is a separate dimension — true while is_planning flag is set,
+      // but only relevant for upcoming trips (active/completed trips are past the planning phase)
+      matchesStatus = (t.is_planning ?? true) && !['cancelled', 'active', 'completed'].includes(getEffectiveStatus(t))
     } else if (statusFilter === 'cancelled') {
       matchesStatus = getEffectiveStatus(t) === 'cancelled'
     } else {

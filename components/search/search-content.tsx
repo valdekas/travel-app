@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { Trip, Location, WishlistItem, LOCATION_TYPE_ICONS } from '@/lib/types'
-import { getTripStatusColor, formatDate } from '@/lib/utils'
+import { getTripStatusColor, formatDate, getEffectiveStatus } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -105,7 +105,7 @@ export function SearchContent({ trips, locations, wishlist }: SearchContentProps
                           <span className="font-medium text-sm">{t.name}</span>
                           <span className="text-muted-foreground text-sm"> — {t.country}</span>
                         </div>
-                        <Badge className={`text-xs ${getTripStatusColor(t.status)}`} variant="secondary">{t.status}</Badge>
+                        <Badge className={`text-xs ${getTripStatusColor(getEffectiveStatus(t))}`} variant="secondary">{getEffectiveStatus(t)}</Badge>
                         {t.start_date && <span className="text-xs text-muted-foreground">{formatDate(t.start_date)}</span>}
                       </CardContent>
                     </Card>
@@ -184,7 +184,7 @@ export function SearchContent({ trips, locations, wishlist }: SearchContentProps
                       <p className="font-medium text-sm">{t.name}</p>
                       <p className="text-xs text-muted-foreground">{t.country} {t.start_date && `· ${formatDate(t.start_date)}`}</p>
                     </div>
-                    <Badge className={`text-xs ${getTripStatusColor(t.status)}`} variant="secondary">{t.status}</Badge>
+                    <Badge className={`text-xs ${getTripStatusColor(getEffectiveStatus(t))}`} variant="secondary">{getEffectiveStatus(t)}</Badge>
                   </CardContent>
                 </Card>
               </Link>

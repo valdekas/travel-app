@@ -159,6 +159,7 @@ Ideas that should NOT be implemented yet.
 # ✅ Done This Sprint
 
 * [x] Bug fix — Hero image missing on trip cards: switched card from `<img>` to `<Image>` (Next.js optimizer/caching), replaced DOM-mutation onError with React state three-level fallback (cover_photo → country image → global fallback)
+* [x] Bug fix — "Planning" badge shown on completed/active trips: all 5 status-display sites now use getEffectiveStatus() — Dashboard Recent Trips, trip detail Planning pill, My Trips Planning filter, Search badges, Command Palette badge
 
 * [x] Google Places Autocomplete
 * [x] Automatic destination images

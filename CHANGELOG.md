@@ -847,3 +847,28 @@ Title → Date & Time → Mood → Linked Location → Journal Entry → Photos 
   2. On error → `countrySrc` = `getCityOrCountryImage(trip.country ?? '')` (null-safe)
   3. On error → `fallbackSrc` = generic travel FALLBACK_IMAGE
 - Null-safe: `trip.country ?? ''` prevents a `TypeError` crash if `country` is null at runtime
+
+---
+
+## 2026-06-22 (Bug fix — "Planning" label on completed/active trips)
+
+### Fixed — 5 files
+
+**Root cause:** Multiple status-display components read `trip.status` (the DB-stored enum) instead of `getEffectiveStatus(trip)` (the date-derived truth). For trips whose end_date has passed but whose DB status is still `'upcoming'` or `'planning'`, `getEffectiveStatus` returns `'completed'`, but the UI was showing "Planning" because the raw status value fell through to a generic fallback.
+
+**Rule enforced everywhere:** 
+- `completed` or `active` → never show Planning indicator regardless of `is_planning` flag
+- `upcoming` + `is_planning=true` → show Planning indicator
+- `cancelled` → show Cancelled only
+
+**Files fixed:**
+
+1. **`components/dashboard/dashboard-content.tsx`** — Recent Trips `statusBadge` now uses `getEffectiveStatus(trip)` for `active`/`completed`/`cancelled` checks. Previously used `trip.status` directly, so completed trips fell through to the generic "Planning" fallback.
+
+2. **`components/trips/trip-detail-shell.tsx`** — Planning confirm pill now guards with `!['active', 'completed'].includes(getEffectiveStatus(trip))`. A trip that is already active or completed no longer shows the Planning pill at all.
+
+3. **`components/trips/trips-list-content.tsx`** — "Planning" filter now excludes `active` and `completed` effective statuses. A completed trip with `is_planning=true` no longer leaks into the Planning filter.
+
+4. **`components/search/search-content.tsx`** — Both trip status badges now use `getEffectiveStatus(t)` for both the color class and the displayed label. Added `getEffectiveStatus` to the import.
+
+5. **`components/shared/command-palette.tsx`** — Trip `badge` and `badgeColor` now use `getEffectiveStatus(t)` instead of `t.status`. Added `getEffectiveStatus` to the import.

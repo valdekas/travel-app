@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { Search, X, Loader2, ArrowRight, Clock } from 'lucide-react'
 import { LOCATION_TYPE_ICONS } from '@/lib/types'
-import { getCountryFlag, formatDate, cn } from '@/lib/utils'
+import { getCountryFlag, formatDate, cn, getEffectiveStatus } from '@/lib/utils'
 
 /* ── types ─────────────────────────────────────────────────── */
 
@@ -163,8 +163,8 @@ export function CommandPalette({ open, onClose }: Props) {
           id: `trip-${t.id}`, group: 'trips', icon: '✈️',
           title: t.name,
           subtitle: `${t.country_code ? getCountryFlag(t.country_code) + ' ' : ''}${t.country}${t.start_date ? ' · ' + formatDate(t.start_date, 'MMM yyyy') : ''}`,
-          badge: t.status,
-          badgeColor: STATUS_COLORS[t.status],
+          badge: getEffectiveStatus(t),
+          badgeColor: STATUS_COLORS[getEffectiveStatus(t)],
           href: `/trips/${t.id}`,
         }))
 

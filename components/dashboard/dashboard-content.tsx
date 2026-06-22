@@ -420,9 +420,12 @@ export function DashboardContent({
                     const days = trip.start_date ? daysUntil(trip.start_date) : null
                     const dateLabel = trip.start_date ? formatDate(trip.start_date, 'MMM d, yyyy') : null
 
+                    const effectiveStatus = getEffectiveStatus(trip)
                     const statusBadge = (() => {
-                      if (trip.status === 'active') return { label: 'Active', className: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' }
-                      if (trip.status === 'completed') return { label: 'Done', className: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400' }
+                      if (effectiveStatus === 'active')    return { label: 'Active',     className: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' }
+                      if (effectiveStatus === 'completed') return { label: 'Done',       className: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400' }
+                      if (effectiveStatus === 'cancelled') return { label: 'Cancelled',  className: 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400' }
+                      // upcoming — show countdown if date is in the future, otherwise Planning
                       if (days !== null && days >= 0) {
                         const text = days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days}d`
                         return { label: text, className: days <= 7 ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' : 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' }
