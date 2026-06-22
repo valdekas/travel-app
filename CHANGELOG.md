@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-06-22 (Polish Dashboard empty state)
+
+### Changed — `components/dashboard/dashboard-content.tsx`
+
+- **Illustration** — replaced generic mountain/sky SVG with a premium globe illustration: soft indigo/violet radial gradient, latitude/longitude grid lines clipped to the globe, simplified continent blobs, dashed flight arc, plane, origin + destination pins, sparkle accents
+- **Headline** — "Your passport to adventure awaits" → "Every unforgettable journey starts with a single trip."
+- **Subtitle** — updated to describe the app's actual features: destinations, itinerary, budget, memories, world map
+- **Feature badges** — added 4 pill badges below the CTA button: ✈️ Plan Trips · 🗺️ Interactive Map · 📅 Smart Itinerary · 📖 Travel Journal
+- **Removed** — "Free forever · No credit card required" tagline (inaccurate once premium plans launch)
+- "Plan Your First Trip" button unchanged
+
+---
+
 ## 2026-06-22 (Fix Google OAuth PKCE code_verifier wiped by middleware)
 
 ### Fixed — `lib/supabase/middleware.ts`

@@ -28,39 +28,61 @@ import { getDailyQuote } from '@/lib/data/travel-quotes'
 /* ─── Empty-state illustration ───────────────────────────────── */
 function EmptyIllustration() {
   return (
-    <svg viewBox="0 0 320 220" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-56 mx-auto">
-      {/* Sky */}
-      <rect width="320" height="220" rx="20" fill="#EEF2FF" />
-      {/* Sun */}
-      <circle cx="270" cy="52" r="22" fill="#FDE68A" />
-      <circle cx="270" cy="52" r="15" fill="#FCD34D" />
-      {/* Clouds */}
-      <ellipse cx="80" cy="60" rx="35" ry="16" fill="white" fillOpacity=".9" />
-      <ellipse cx="60" cy="60" rx="24" ry="14" fill="white" fillOpacity=".9" />
-      <ellipse cx="100" cy="60" rx="24" ry="14" fill="white" fillOpacity=".9" />
-      <ellipse cx="185" cy="42" rx="26" ry="13" fill="white" fillOpacity=".7" />
-      <ellipse cx="168" cy="42" rx="18" ry="11" fill="white" fillOpacity=".7" />
-      <ellipse cx="202" cy="42" rx="18" ry="11" fill="white" fillOpacity=".7" />
-      {/* Ground */}
-      <rect x="0" y="160" width="320" height="60" fill="#DCFCE7" />
-      <rect x="0" y="175" width="320" height="45" fill="#BBF7D0" fillOpacity=".5" />
-      {/* Mountains */}
-      <path d="M0 160 L60 95 L120 160Z" fill="#86EFAC" fillOpacity=".65" />
-      <path d="M80 160 L155 75 L230 160Z" fill="#4ADE80" fillOpacity=".7" />
-      <path d="M190 160 L250 105 L310 160Z" fill="#86EFAC" fillOpacity=".55" />
-      {/* Dashed flight path */}
-      <path d="M55 135 Q130 65 240 100" stroke="#A5B4FC" strokeWidth="2.5" strokeDasharray="7 5" fill="none" />
-      {/* Airplane */}
-      <g transform="translate(140,80) rotate(-18)">
-        <path d="M22 8C27 3 40 3 40 8L44 20L22 17Z" fill="#6366F1" />
-        <path d="M4 12L22 8 22 17 4 20Z" fill="#818CF8" />
-        <path d="M15 15L-2 21 3 24 15 19Z" fill="#A5B4FC" />
-        <path d="M20 17L13 27 18 27 25 19Z" fill="#818CF8" />
+    <svg viewBox="0 0 280 210" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-60 mx-auto">
+      <defs>
+        <radialGradient id="eg" cx="40%" cy="38%" r="62%">
+          <stop offset="0%" stopColor="#EEF2FF" />
+          <stop offset="100%" stopColor="#EDE9FE" />
+        </radialGradient>
+      </defs>
+      {/* Outer glow */}
+      <circle cx="140" cy="108" r="98" fill="#EEF2FF" fillOpacity="0.45" />
+      {/* Globe body */}
+      <circle cx="140" cy="108" r="84" fill="url(#eg)" />
+      <circle cx="140" cy="108" r="84" stroke="#C7D2FE" strokeWidth="1.5" />
+      {/* Grid lines clipped to globe */}
+      <clipPath id="gc">
+        <circle cx="140" cy="108" r="84" />
+      </clipPath>
+      <g clipPath="url(#gc)" stroke="#DDD6FE" strokeWidth="1" fill="none">
+        <ellipse cx="140" cy="108" rx="84" ry="7" />
+        <ellipse cx="140" cy="85"  rx="73" ry="6" />
+        <ellipse cx="140" cy="131" rx="73" ry="6" />
+        <ellipse cx="140" cy="62"  rx="50" ry="5" />
+        <ellipse cx="140" cy="154" rx="50" ry="5" />
+        <line x1="140" y1="24" x2="140" y2="192" />
+        <ellipse cx="140" cy="108" rx="46" ry="84" />
+        <ellipse cx="140" cy="108" rx="75" ry="84" />
       </g>
+      {/* Simplified continent blobs */}
+      <g clipPath="url(#gc)" fill="#C7D2FE" fillOpacity="0.75">
+        <path d="M128 54 Q144 49 155 60 Q163 75 159 96 Q156 116 148 126 Q139 131 132 120 Q124 107 127 89 Q127 70 128 54Z" />
+        <path d="M74 74 Q88 67 96 80 Q102 96 99 116 Q96 129 88 133 Q80 129 75 113 Q71 95 74 74Z" />
+        <path d="M162 51 Q179 47 193 58 Q203 71 199 89 Q196 101 184 105 Q172 106 165 95 Q157 82 160 65 Q160 56 162 51Z" />
+      </g>
+      {/* Dashed flight arc */}
+      <path d="M83 118 Q132 48 196 78" stroke="#818CF8" strokeWidth="2.5" strokeDasharray="7 5" fill="none" />
+      {/* Plane */}
+      <g transform="translate(189,72) rotate(-30)">
+        <path d="M0 0 L15 -4.5 L17 0 L15 4.5Z" fill="#6366F1" />
+        <path d="M8 -2 L3 -8 L6 -8 L10 -2Z" fill="#818CF8" />
+        <path d="M8 2 L3 8 L6 8 L10 2Z" fill="#818CF8" />
+        <path d="M3 -1 L-5 2 L-5 -2Z" fill="#A5B4FC" />
+      </g>
+      {/* Origin pin */}
+      <circle cx="83" cy="118" r="6" fill="#EF4444" />
+      <circle cx="83" cy="118" r="2.5" fill="white" />
       {/* Destination pin */}
-      <circle cx="240" cy="100" r="11" fill="#EF4444" fillOpacity=".9" />
-      <circle cx="240" cy="100" r="4.5" fill="white" />
-      <line x1="240" y1="111" x2="240" y2="122" stroke="#EF4444" strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx="196" cy="78" r="8.5" fill="#6366F1" />
+      <circle cx="196" cy="78" r="3" fill="white" />
+      {/* Sparkle crosses */}
+      <g stroke="#A5B4FC" strokeWidth="1.5" strokeLinecap="round">
+        <line x1="48" y1="47" x2="48" y2="55" /><line x1="44" y1="51" x2="52" y2="51" />
+        <line x1="232" y1="142" x2="232" y2="148" /><line x1="229" y1="145" x2="235" y2="145" />
+      </g>
+      <circle cx="42"  cy="152" r="3"   fill="#DDD6FE" />
+      <circle cx="238" cy="68"  r="2.5" fill="#DDD6FE" />
+      <circle cx="58"  cy="174" r="2"   fill="#C7D2FE" />
     </svg>
   )
 }
@@ -141,18 +163,33 @@ export function DashboardContent({
         >
           <EmptyIllustration />
           <div className="mt-8">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">
-              Your passport to adventure awaits
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-3">
+              Every unforgettable journey starts with a single trip.
             </h2>
             <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
-              Create your first trip and turn your travel dreams into a beautifully organised plan — itinerary, budget, places, and memories all in one place.
+              Plan destinations, organize your itinerary, manage your budget, keep travel memories and explore the world — all in one place.
             </p>
             <Link href="/trips/new">
               <Button className="gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white border-0 shadow-lg shadow-indigo-500/25 rounded-xl h-11 px-7 text-base">
                 <Plus className="h-4 w-4" /> Plan Your First Trip
               </Button>
             </Link>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-4">Free forever · No credit card required</p>
+            <div className="flex flex-wrap justify-center gap-2 mt-6">
+              {[
+                { emoji: '✈️', label: 'Plan Trips' },
+                { emoji: '🗺️', label: 'Interactive Map' },
+                { emoji: '📅', label: 'Smart Itinerary' },
+                { emoji: '📖', label: 'Travel Journal' },
+              ].map(f => (
+                <span
+                  key={f.label}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-xs text-slate-500 dark:text-slate-400"
+                >
+                  <span>{f.emoji}</span>
+                  <span>{f.label}</span>
+                </span>
+              ))}
+            </div>
           </div>
         </motion.div>
       </div>
