@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-06-23 (Fix Dashboard Countries Visited to match World Map exactly)
+
+### Fixed — `components/dashboard/dashboard-content.tsx`
+
+Previous fix introduced `partialOnlyCount` which incorrectly added countries from `visited_regions` (states/provinces visited) — inflating the count from 5 to 9.
+
+Replaced with an exact mirror of the World Map formula:
+```
+tripCompletedCodes = trips.filter(completed).map(t => resolveA2(t.country_code, t.country))
+countriesVisited   = union(visitedCountryCodes, tripCompletedCodes).size
+```
+
+Key difference: uses `resolveA2()` (from `lib/utils/country-codes`) to normalize country names to ISO2 codes, so trips without `country_code` set still count correctly — same as `world-map-widget.tsx` line 718. No partial countries added to the count; `partiallyVisitedRegions` is only used for map colouring, not for the numeric stat.
+
+Dashboard stat card now shows 5, matching World Map stats bar.
+
+---
+
 ## 2026-06-23 (Fix Dashboard "Countries Visited" count inconsistency)
 
 ### Fixed — `components/dashboard/dashboard-content.tsx`

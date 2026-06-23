@@ -47,7 +47,7 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [x] Fix Trip Readiness scoring — itinerary/budget/places were binary flags; now proportional
 * [x] Fix Trip Readiness budget score — now measures budgetPlanned/tripBudget ratio, not existence
 * [x] Replace all native confirm() dialogs — new ConfirmDialog component used across Itinerary, Checklist, Places, Budget
-* [x] Fix Dashboard "Countries Visited" count — now unions manually-visited + trip-completed + partial-only (was ternary, ignored trip countries when manual > 0)
+* [x] Fix Dashboard "Countries Visited" count — mirrors World Map formula exactly: union(visitedCountryCodes, resolveA2(tripCompleted)) — no partial inflation
 * [ ] Better spacing and alignment
 
 ## Places

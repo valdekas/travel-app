@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import { format } from 'date-fns'
 import { Trip } from '@/lib/types'
 import { getDestinationImage, daysUntil, formatDate, getEffectiveStatus, tripDuration as calcTripDuration } from '@/lib/utils'
+import { resolveA2 } from '@/lib/utils/country-codes'
 import { FlagImg } from '@/components/ui/flag-img'
 import { Button } from '@/components/ui/button'
 import {
@@ -62,16 +63,14 @@ export function DashboardContent({
   const nextTrip = upcomingTrips[0] ?? activeTrips[0] ?? null
   const completedTrips = trips.filter(t => getEffectiveStatus(t) === 'completed').length
 
-  // Union manually-visited + trip-completed (by ISO2 code), then add partial-only countries
+  // Mirror World Map formula exactly: union of manually-visited + trip-completed ISO2 codes
   const tripCompletedCodes = new Set(
     trips
       .filter(t => getEffectiveStatus(t) === 'completed')
-      .map(t => t.country_code)
+      .map(t => resolveA2(t.country_code, t.country))
       .filter((c): c is string => Boolean(c)),
   )
-  const fullyVisitedSet    = new Set([...visitedCountryCodes, ...tripCompletedCodes])
-  const partialOnlyCount   = Object.keys(partiallyVisitedRegions).filter(c => !fullyVisitedSet.has(c)).length
-  const countriesVisited   = fullyVisitedSet.size + partialOnlyCount
+  const countriesVisited = new Set([...visitedCountryCodes, ...tripCompletedCodes]).size
 
   const continentsVisited = visitedContinents.length
 
