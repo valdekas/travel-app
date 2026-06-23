@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-06-24 (Suggestions: category-first two-step panel redesign)
+
+### Changed — `app/api/recommendations/route.ts`, `components/trips/places-suggestions-panel.tsx`, `components/itinerary/itinerary-suggestions-panel.tsx`
+
+**API route:**
+- Now accepts `category` in POST body (e.g. `"Restaurants"`, `"guided tours and experiences"`)
+- Prompt rewritten: "Suggest exactly 15 ${categoryLabel} specifically in ${location}" — returns 15 items instead of 8–10
+- `max_tokens` increased to 3000 to accommodate larger responses
+
+**Places Suggestions Panel (full rewrite):**
+- Two-step flow: category picker → results (no auto-fetch on open)
+- 6 category cards in a 2-col grid: Restaurants, Attractions, Viewpoints, Museums, Bars, Parks & Nature
+- Opening the panel shows categories; selecting one triggers the fetch and transitions to results
+- Back button (`← CategoryName`) in sub-header returns to category picker without closing
+- `locationType` comes from the selected `PlaceCategory` object, not per-item API response
+- Loading state: 8 skeleton cards while fetching
+- Error state: inline error with "Try again" button that re-fetches the same category
+- Footer (Cancel + Add N Places) only appears in results step when suggestions are loaded
+
+**Itinerary Suggestions Panel (full rewrite, mirrors Places):**
+- Same two-step flow with 6 activity-focused categories: Dining, Sightseeing, Tours, Shopping, Nature, Nightlife
+- Each category maps to an `ItineraryItemType` for DB insert
+- Day selector (shown only when multiple days exist and ≥1 suggestion is selected) uses date-fns to format day labels as "Day N — Mon, Jan 1"
+- Auto-selects the only day when the trip has exactly 1 day
+
+---
+
 ## 2026-06-23 (Suggestions: stronger city extraction and city-forcing prompt)
 
 ### Fixed — `components/trips/places-suggestions-panel.tsx`, `components/itinerary/itinerary-suggestions-panel.tsx`, `app/api/recommendations/route.ts`

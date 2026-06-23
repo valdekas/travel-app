@@ -8,78 +8,71 @@ export async function POST(req: NextRequest) {
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-  const { type, destination, country, duration, existingItems } = await req.json()
+  const { type, destination, country, duration, category, existingItems } = await req.json()
 
   const exclusions =
     existingItems?.length > 0
       ? `\nDo NOT suggest any of these already-added items: ${(existingItems as string[]).join(', ')}.`
       : ''
 
-  // Build location string and extract just the city name for prompt emphasis
+  // Location strings
   const location = destination && destination !== country
     ? `${destination}, ${country}`
     : country
-  // cityName = first segment before any comma (handles "Costa Blanca, Alicante" → "Costa Blanca")
   const cityName = destination?.split(',')[0]?.trim() || country
+
+  // Category label — fall back to "popular spots" if somehow omitted
+  const categoryLabel = (category as string) || 'popular spots'
 
   let prompt: string
 
   if (type === 'places') {
-    prompt = `You are a travel expert. I need specific recommendations for a trip to ${location}.
+    prompt = `You are a travel expert. Suggest exactly 15 ${categoryLabel} specifically in ${location}.
 
-IMPORTANT: Only suggest places that are physically located in ${cityName} itself — not in other cities, not country-wide attractions, not generic suggestions. Every single item must be something a visitor can actually go to while staying in ${cityName}.
+IMPORTANT:
+- Focus ONLY on ${categoryLabel} — every single item must be a ${categoryLabel.toLowerCase()} physically located in ${cityName} itself.
+- Do NOT suggest items in other cities, generic country-wide attractions, or anything outside ${cityName}.
+- Use real, well-known, highly-rated places that a tourist visiting ${cityName} can actually go to.${exclusions}
 
-For example:
-- If the city is Chicago: Millennium Park, The Art Institute of Chicago, Lou Malnati's Pizzeria, Navy Pier, the 360 Chicago observation deck — NOT generic US attractions.
-- If the city is Paris: the Eiffel Tower, Le Marais, Café de Flore, the Louvre — NOT generic French attractions.
-
-Suggest 8–10 must-visit places specifically in ${cityName} for a ${duration}-day trip.${exclusions}
-
-Respond ONLY with a valid JSON array. No markdown, no code fences, no explanation — just the raw JSON array.
+Return exactly 15 items. Respond ONLY with a valid JSON array. No markdown, no code fences, no explanation.
 Each object must have exactly these fields:
-- name: string (specific venue or place name)
-- category: string (one of: Restaurant, Cafe, Museum, Viewpoint, Hotel, Bar, Park, Shopping, Attraction, Beach)
+- name: string (specific place name)
+- category: string (short label, e.g. "Restaurant", "Museum", "Viewpoint")
 - description: string (exactly 1 sentence about why it's worth visiting in ${cityName})
 - emoji: string (one relevant emoji)
 
-Example for Chicago:
-[{"name":"Millennium Park","category":"Park","description":"Chicago's iconic 24-acre park is home to the Cloud Gate sculpture, Crown Fountain, and free summer concerts in the Jay Pritzker Pavilion.","emoji":"🌿"}]`
+Example for Chicago Restaurants:
+[{"name":"Lou Malnati's Pizzeria","category":"Restaurant","description":"Chicago's most beloved deep dish pizza chain, serving buttery crust pies stuffed with sausage and vine-ripened tomatoes since 1971.","emoji":"🍕"}]`
   } else {
-    prompt = `You are a travel expert. I need a specific activity itinerary for a trip to ${location}.
+    prompt = `You are a travel expert. Suggest exactly 15 ${categoryLabel} experiences specifically in ${location}.
 
-IMPORTANT: Only suggest activities and experiences that are physically available in ${cityName} itself — not in other cities, not country-wide experiences, not generic suggestions. Every single item must be something a visitor can actually do while staying in ${cityName}.
+IMPORTANT:
+- Focus ONLY on ${categoryLabel} — every single item must be a ${categoryLabel.toLowerCase()} experience physically available in ${cityName} itself.
+- Do NOT suggest activities in other cities or generic country-wide experiences.
+- Use real, bookable, highly-rated activities that a tourist staying in ${cityName} can actually do.${exclusions}
 
-For example:
-- If the city is Chicago: an architecture boat tour on the Chicago River, deep dish pizza at Giordano's, visiting the Navy Pier, catching a Cubs game at Wrigley Field — NOT generic US activities.
-- If the city is Barcelona: La Sagrada Família, tapas in El Born, the Gothic Quarter walking tour — NOT generic Spanish activities.
-
-Suggest 8–10 activities and experiences specifically in ${cityName} for a ${duration}-day trip.${exclusions}
-
-Respond ONLY with a valid JSON array. No markdown, no code fences, no explanation — just the raw JSON array.
+Return exactly 15 items. Respond ONLY with a valid JSON array. No markdown, no code fences, no explanation.
 Each object must have exactly these fields:
 - name: string (specific activity or venue name)
-- category: string (one of: attraction, restaurant, activity, tour, shopping, viewpoint, beach, hotel, transport, other)
+- category: string (short label, e.g. "tour", "restaurant", "activity")
 - description: string (exactly 1 sentence describing the experience in ${cityName})
 - suggestedTime: string (recommended start time, e.g. "09:00", "14:00", "19:30")
 - duration: string (how long it takes, e.g. "1 hour", "2–3 hours", "Half day")
 - emoji: string (one relevant emoji)
 
-Example for Chicago:
-[{"name":"Chicago River Architecture Boat Tour","category":"tour","description":"Cruise the Chicago River on a 90-minute tour to see 50+ landmark buildings and learn why Chicago is the birthplace of modern architecture.","emoji":"🚢","suggestedTime":"10:00","duration":"1.5 hours"}]`
+Example for Chicago Tours:
+[{"name":"Chicago River Architecture Boat Tour","category":"tour","description":"Cruise the Chicago River on a 90-minute tour to see 50+ landmark skyscrapers and learn why Chicago is the birthplace of modern architecture.","emoji":"🚢","suggestedTime":"10:00","duration":"1.5 hours"}]`
   }
 
   try {
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
+      max_tokens: 3000,
       messages: [{ role: 'user', content: prompt }],
     })
 
     const text = message.content[0].type === 'text' ? message.content[0].text.trim() : '[]'
-
-    // Strip any accidental markdown fences Claude may add despite instructions
     const clean = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/, '')
-
     const suggestions = JSON.parse(clean)
     return NextResponse.json({ suggestions })
   } catch (err) {

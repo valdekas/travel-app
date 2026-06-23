@@ -8,7 +8,26 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Sparkles, Loader2, RefreshCw } from 'lucide-react'
+import { Sparkles, Loader2, RefreshCw, ChevronLeft } from 'lucide-react'
+
+// ── Category definitions ───────────────────────────────────────────────────────
+
+interface PlaceCategory {
+  id: string
+  emoji: string
+  name: string
+  description: string
+  locationType: LocationType
+}
+
+const CATEGORIES: PlaceCategory[] = [
+  { id: 'Restaurants',   emoji: '🍽️', name: 'Restaurants',   description: 'Best local dining spots',      locationType: 'restaurant' },
+  { id: 'Attractions',   emoji: '🏛️', name: 'Attractions',   description: 'Must-see landmarks',            locationType: 'attraction' },
+  { id: 'Viewpoints',    emoji: '🌅', name: 'Viewpoints',    description: 'Scenic panoramic spots',        locationType: 'viewpoint'  },
+  { id: 'Museums',       emoji: '🎨', name: 'Museums',       description: 'Culture and galleries',         locationType: 'attraction' },
+  { id: 'Bars',          emoji: '🍸', name: 'Bars',          description: 'Nightlife and cocktails',       locationType: 'restaurant' },
+  { id: 'Parks & Nature',emoji: '🌿', name: 'Parks & Nature','description': 'Parks, gardens, beaches',     locationType: 'attraction' },
+]
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -19,31 +38,21 @@ interface PlaceSuggestion {
   emoji: string
 }
 
+type Step = 'categories' | 'results'
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function mapCategory(category: string): LocationType {
-  const map: Record<string, LocationType> = {
-    restaurant: 'restaurant', cafe: 'restaurant', bar: 'restaurant',
-    museum: 'attraction', attraction: 'attraction', park: 'attraction',
-    viewpoint: 'viewpoint', hotel: 'hotel', beach: 'beach',
-    shopping: 'other',
-  }
-  return map[category.toLowerCase()] ?? 'other'
+function extractCity(trip: Trip): string {
+  if (trip.city && trip.city !== trip.country) return trip.city
+  if (trip.region && trip.region !== trip.country) return trip.region
+  return trip.country || 'the destination'
 }
 
-function duration(trip: Trip): number {
+function tripDurationDays(trip: Trip): number {
   if (!trip.start_date || !trip.end_date) return 7
   return Math.max(1, Math.round(
     (new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / 86_400_000
   ) + 1)
-}
-
-function extractCity(trip: Trip): string {
-  // trip.city comes from Google Places locality — most specific
-  if (trip.city && trip.city !== trip.country) return trip.city
-  // trip.region (e.g. "Costa Blanca", "Illinois") is more specific than country
-  if (trip.region && trip.region !== trip.country) return trip.region
-  return trip.country || 'the destination'
 }
 
 // ── Skeleton ───────────────────────────────────────────────────────────────────
@@ -88,15 +97,12 @@ function SuggestionCard({
       )}
     >
       <div className="flex items-start gap-3">
-        {/* Emoji pill */}
         <div className={cn(
           'w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0 transition-colors',
           selected ? 'bg-violet-100 dark:bg-violet-900' : 'bg-muted',
         )}>
           {suggestion.emoji}
         </div>
-
-        {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-sm">{suggestion.name}</span>
@@ -105,7 +111,7 @@ function SuggestionCard({
             </Badge>
             {selected && (
               <span className="ml-auto text-[11px] font-semibold text-violet-600 dark:text-violet-400 shrink-0">
-                ✓ Added
+                ✓ Selected
               </span>
             )}
           </div>
@@ -114,6 +120,23 @@ function SuggestionCard({
           </p>
         </div>
       </div>
+    </button>
+  )
+}
+
+// ── Category card ──────────────────────────────────────────────────────────────
+
+function CategoryCard({ cat, onClick }: { cat: PlaceCategory; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-2 p-4 rounded-xl border border-border/60 hover:border-violet-300 hover:bg-violet-50/60 dark:hover:border-violet-700 dark:hover:bg-violet-950/30 transition-all text-center group"
+    >
+      <span className="text-3xl group-hover:scale-110 transition-transform duration-150">
+        {cat.emoji}
+      </span>
+      <span className="font-semibold text-sm leading-tight">{cat.name}</span>
+      <span className="text-[11px] text-muted-foreground leading-snug">{cat.description}</span>
     </button>
   )
 }
@@ -127,16 +150,29 @@ interface PlacesSuggestionsPanelProps {
 }
 
 export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesSuggestionsPanelProps) {
-  const [open, setOpen]             = useState(false)
-  const [loading, setLoading]       = useState(false)
-  const [error, setError]           = useState<string | null>(null)
-  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([])
-  const [selected, setSelected]     = useState<Set<number>>(new Set())
-  const [adding, setAdding]         = useState(false)
+  const [open, setOpen]                 = useState(false)
+  const [step, setStep]                 = useState<Step>('categories')
+  const [activeCategory, setActiveCategory] = useState<PlaceCategory | null>(null)
+  const [loading, setLoading]           = useState(false)
+  const [error, setError]               = useState<string | null>(null)
+  const [suggestions, setSuggestions]   = useState<PlaceSuggestion[]>([])
+  const [selected, setSelected]         = useState<Set<number>>(new Set())
+  const [adding, setAdding]             = useState(false)
   const supabase = createClient()
+  const city = extractCity(trip)
 
-  async function fetchSuggestions() {
+  function openPanel() {
     setOpen(true)
+    setStep('categories')
+    setActiveCategory(null)
+    setSuggestions([])
+    setSelected(new Set())
+    setError(null)
+  }
+
+  async function selectCategory(cat: PlaceCategory) {
+    setActiveCategory(cat)
+    setStep('results')
     setLoading(true)
     setError(null)
     setSuggestions([])
@@ -148,9 +184,10 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'places',
-          destination: extractCity(trip),
+          destination: city,
           country: trip.country,
-          duration: duration(trip),
+          duration: tripDurationDays(trip),
+          category: cat.id,
           existingItems: existingNames,
         }),
       })
@@ -162,6 +199,14 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
     } finally {
       setLoading(false)
     }
+  }
+
+  function goBack() {
+    setStep('categories')
+    setActiveCategory(null)
+    setSuggestions([])
+    setSelected(new Set())
+    setError(null)
   }
 
   function toggle(idx: number) {
@@ -178,13 +223,13 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
     setAdding(true)
     try {
       const rows = items.map((s, i) => ({
-        trip_id:       trip.id,
-        name:          s.name,
-        type:          mapCategory(s.category),
-        description:   s.description,
+        trip_id:        trip.id,
+        name:           s.name,
+        type:           activeCategory?.locationType ?? 'other',
+        description:    s.description,
         estimated_cost: 0,
-        visited:       false,
-        order_index:   existingNames.length + i,
+        visited:        false,
+        order_index:    existingNames.length + i,
       }))
       const { error } = await supabase.from('locations').insert(rows)
       if (error) throw error
@@ -202,11 +247,11 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
 
   return (
     <>
-      {/* Trigger button */}
+      {/* Trigger */}
       <Button
         variant="outline"
         size="sm"
-        onClick={fetchSuggestions}
+        onClick={openPanel}
         className="gap-1.5 shrink-0 border-violet-200 text-violet-700 hover:bg-violet-50 hover:border-violet-300 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950"
       >
         <Sparkles className="h-3.5 w-3.5" />
@@ -216,49 +261,89 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
       {/* Panel */}
       <Dialog open={open} onOpenChange={v => { if (!v && !adding) setOpen(false) }}>
         <DialogContent className="max-w-lg max-h-[88vh] flex flex-col gap-0 p-0">
-          {/* Header */}
+
+          {/* Header — always visible */}
           <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/50 shrink-0">
             <DialogTitle className="flex items-center gap-2 text-base">
               <Sparkles className="h-4 w-4 text-violet-500" />
               Suggestions
-              <span className="text-sm font-normal text-muted-foreground">
-                — {extractCity(trip)}
-              </span>
+              <span className="text-sm font-normal text-muted-foreground">— {city}</span>
             </DialogTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Select places to add to your trip. Click any card to toggle selection.
-            </p>
+
+            {/* Step sub-header */}
+            {step === 'categories' && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                What are you looking for? Choose a category to get 15 curated suggestions.
+              </p>
+            )}
+            {step === 'results' && activeCategory && (
+              <div className="flex items-center gap-2 mt-1">
+                <button
+                  onClick={goBack}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  {activeCategory.name}
+                </button>
+                {loading && (
+                  <span className="text-xs text-muted-foreground">
+                    · Finding the best {activeCategory.name.toLowerCase()} in {city}…
+                  </span>
+                )}
+              </div>
+            )}
           </DialogHeader>
 
-          {/* Scrollable list */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2.5 min-h-0">
-            {loading && Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto min-h-0">
 
-            {error && (
-              <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-5 text-center">
-                <p className="text-sm text-destructive mb-3">{error}</p>
-                <Button variant="outline" size="sm" onClick={fetchSuggestions} className="gap-1.5">
-                  <RefreshCw className="h-3.5 w-3.5" /> Try again
-                </Button>
+            {/* Step 1: Category picker */}
+            {step === 'categories' && (
+              <div className="px-5 py-5">
+                <div className="grid grid-cols-2 gap-3">
+                  {CATEGORIES.map(cat => (
+                    <CategoryCard key={cat.id} cat={cat} onClick={() => selectCategory(cat)} />
+                  ))}
+                </div>
               </div>
             )}
 
-            {!loading && !error && suggestions.length === 0 && (
-              <div className="py-12 text-center text-muted-foreground text-sm">No suggestions returned.</div>
-            )}
+            {/* Step 2: Results */}
+            {step === 'results' && (
+              <div className="px-5 py-4 space-y-2.5">
+                {loading && Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
 
-            {!loading && !error && suggestions.map((s, i) => (
-              <SuggestionCard
-                key={i}
-                suggestion={s}
-                selected={selected.has(i)}
-                onToggle={() => toggle(i)}
-              />
-            ))}
+                {error && (
+                  <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-5 text-center">
+                    <p className="text-sm text-destructive mb-3">{error}</p>
+                    <Button
+                      variant="outline" size="sm"
+                      onClick={() => activeCategory && selectCategory(activeCategory)}
+                      className="gap-1.5"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" /> Try again
+                    </Button>
+                  </div>
+                )}
+
+                {!loading && !error && suggestions.length === 0 && (
+                  <div className="py-12 text-center text-muted-foreground text-sm">No suggestions returned.</div>
+                )}
+
+                {!loading && !error && suggestions.map((s, i) => (
+                  <SuggestionCard
+                    key={i}
+                    suggestion={s}
+                    selected={selected.has(i)}
+                    onToggle={() => toggle(i)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Footer */}
-          {!loading && !error && suggestions.length > 0 && (
+          {/* Footer — only in results step with suggestions */}
+          {step === 'results' && !loading && !error && suggestions.length > 0 && (
             <div className="px-5 py-4 border-t border-border/50 shrink-0 flex gap-3">
               <Button variant="outline" onClick={() => setOpen(false)} className="flex-1" disabled={adding}>
                 Cancel
@@ -270,7 +355,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
               >
                 {adding
                   ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Adding…</>
-                  : selCount > 0 ? `Add ${selCount} Place${selCount !== 1 ? 's' : ''}` : 'Select places below'
+                  : selCount > 0 ? `Add ${selCount} Place${selCount !== 1 ? 's' : ''}` : 'Select places above'
                 }
               </Button>
             </div>

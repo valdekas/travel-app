@@ -58,13 +58,13 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [x] Drag & Drop ordering — handle-only, per-group (To Visit / Visited), persisted to DB
 * [x] Edit Place — pencil button per row, pre-filled modal, Google Places autocomplete, preserves coords when only editing notes/cost
 * [x] Mobile overflow menu (⋮) — Edit, Open in Maps, Delete
-* [x] AI Suggestions — ✨ button opens panel; Claude suggests 8–10 city-specific places; checkbox selection; bulk insert into locations table; extractCity() uses city→region→country priority
+* [x] AI Suggestions — ✨ button opens panel; category-first two-step flow (6 categories → 15 city-specific results); checkbox selection; bulk insert into locations table; extractCity() uses city→region→country priority
 * [ ] Better Place cards
 * [ ] Improve mobile layout
 
 ## Itinerary
 
-* [x] AI Suggestions — ✨ button (shown when days exist); Claude suggests 8–10 activities; checkbox selection; day selector (auto if 1 day, dropdown if multiple); bulk insert into itinerary_items
+* [x] AI Suggestions — ✨ button (shown when days exist); category-first two-step flow (6 activity categories → 15 city-specific results); checkbox selection; day selector (auto if 1 day, dropdown if multiple); bulk insert into itinerary_items
 * [x] Drag & Drop activities — handle-only, per-day, persisted
 * [x] Mobile DnD discoverability — handle always visible on mobile, DragHint banner (once per device)
 * [x] Activity detail expand — click card body to expand full description/address; chevron indicator; inline Edit + Maps shortcuts; `line-clamp-2` compact preview; full text on mobile (no truncation when expanded)

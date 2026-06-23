@@ -9,8 +9,27 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Sparkles, Loader2, RefreshCw, Clock, Timer } from 'lucide-react'
+import { Sparkles, Loader2, RefreshCw, ChevronLeft, Clock, Timer } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
+
+// ── Category definitions ───────────────────────────────────────────────────────
+
+interface ActivityCategory {
+  id: string
+  emoji: string
+  name: string
+  description: string
+  itemType: ItineraryItemType
+}
+
+const CATEGORIES: ActivityCategory[] = [
+  { id: 'restaurants and dining',          emoji: '🍽️', name: 'Dining',       description: 'Restaurants and cafés',          itemType: 'restaurant' },
+  { id: 'sightseeing and landmarks',       emoji: '🏛️', name: 'Sightseeing',  description: 'Landmarks and attractions',       itemType: 'attraction' },
+  { id: 'guided tours and experiences',    emoji: '🎯', name: 'Tours',        description: 'Guided tours and experiences',    itemType: 'tour'       },
+  { id: 'shopping and markets',            emoji: '🛍️', name: 'Shopping',     description: 'Markets and shopping areas',      itemType: 'shopping'   },
+  { id: 'nature and outdoor activities',   emoji: '🌿', name: 'Nature',       description: 'Parks, beaches, outdoors',        itemType: 'activity'   },
+  { id: 'nightlife and entertainment',     emoji: '🌙', name: 'Nightlife',    description: 'Bars, shows, entertainment',      itemType: 'other'      },
+]
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -23,15 +42,14 @@ interface ItinerarySuggestion {
   emoji: string
 }
 
+type Step = 'categories' | 'results'
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function mapCategory(category: string): ItineraryItemType {
-  const map: Record<string, ItineraryItemType> = {
-    attraction: 'attraction', restaurant: 'restaurant', tour: 'tour',
-    shopping: 'shopping', viewpoint: 'viewpoint', beach: 'beach',
-    hotel: 'hotel', transport: 'transport', activity: 'activity', other: 'other',
-  }
-  return map[category.toLowerCase()] ?? 'other'
+function extractCity(trip: Trip): string {
+  if (trip.city && trip.city !== trip.country) return trip.city
+  if (trip.region && trip.region !== trip.country) return trip.region
+  return trip.country || 'the destination'
 }
 
 function tripDurationDays(trip: Trip): number {
@@ -39,12 +57,6 @@ function tripDurationDays(trip: Trip): number {
   return Math.max(1, Math.round(
     (new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / 86_400_000
   ) + 1)
-}
-
-function extractCity(trip: Trip): string {
-  if (trip.city && trip.city !== trip.country) return trip.city
-  if (trip.region && trip.region !== trip.country) return trip.region
-  return trip.country || 'the destination'
 }
 
 function dayLabel(day: ItineraryDay, index: number): string {
@@ -101,15 +113,12 @@ function SuggestionCard({
       )}
     >
       <div className="flex items-start gap-3">
-        {/* Emoji pill */}
         <div className={cn(
           'w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0 transition-colors',
           selected ? 'bg-violet-100 dark:bg-violet-900' : 'bg-muted',
         )}>
           {suggestion.emoji}
         </div>
-
-        {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-sm">{suggestion.name}</span>
@@ -118,12 +127,10 @@ function SuggestionCard({
             </Badge>
             {selected && (
               <span className="ml-auto text-[11px] font-semibold text-violet-600 dark:text-violet-400 shrink-0">
-                ✓ Added
+                ✓ Selected
               </span>
             )}
           </div>
-
-          {/* Time + duration meta */}
           <div className="flex items-center gap-3 mt-1">
             {suggestion.suggestedTime && (
               <span className="text-[11px] text-muted-foreground flex items-center gap-1">
@@ -136,12 +143,28 @@ function SuggestionCard({
               </span>
             )}
           </div>
-
           <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
             {suggestion.description}
           </p>
         </div>
       </div>
+    </button>
+  )
+}
+
+// ── Category card ──────────────────────────────────────────────────────────────
+
+function CategoryCard({ cat, onClick }: { cat: ActivityCategory; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-2 p-4 rounded-xl border border-border/60 hover:border-violet-300 hover:bg-violet-50/60 dark:hover:border-violet-700 dark:hover:bg-violet-950/30 transition-all text-center group"
+    >
+      <span className="text-3xl group-hover:scale-110 transition-transform duration-150">
+        {cat.emoji}
+      </span>
+      <span className="font-semibold text-sm leading-tight">{cat.name}</span>
+      <span className="text-[11px] text-muted-foreground leading-snug">{cat.description}</span>
     </button>
   )
 }
@@ -161,23 +184,35 @@ export function ItinerarySuggestionsPanel({
   existingNames,
   onAdded,
 }: ItinerarySuggestionsPanelProps) {
-  const [open, setOpen]               = useState(false)
-  const [loading, setLoading]         = useState(false)
-  const [error, setError]             = useState<string | null>(null)
-  const [suggestions, setSuggestions] = useState<ItinerarySuggestion[]>([])
-  const [selected, setSelected]       = useState<Set<number>>(new Set())
+  const [open, setOpen]                   = useState(false)
+  const [step, setStep]                   = useState<Step>('categories')
+  const [activeCategory, setActiveCategory] = useState<ActivityCategory | null>(null)
+  const [loading, setLoading]             = useState(false)
+  const [error, setError]                 = useState<string | null>(null)
+  const [suggestions, setSuggestions]     = useState<ItinerarySuggestion[]>([])
+  const [selected, setSelected]           = useState<Set<number>>(new Set())
   const [selectedDayId, setSelectedDayId] = useState<string>('')
-  const [adding, setAdding]           = useState(false)
+  const [adding, setAdding]               = useState(false)
   const supabase = createClient()
+  const city = extractCity(trip)
 
-  async function fetchSuggestions() {
+  function openPanel() {
     setOpen(true)
+    setStep('categories')
+    setActiveCategory(null)
+    setSuggestions([])
+    setSelected(new Set())
+    setError(null)
+    setSelectedDayId(days.length === 1 ? days[0].id : '')
+  }
+
+  async function selectCategory(cat: ActivityCategory) {
+    setActiveCategory(cat)
+    setStep('results')
     setLoading(true)
     setError(null)
     setSuggestions([])
     setSelected(new Set())
-    // Pre-select the first day if only one exists
-    setSelectedDayId(days.length === 1 ? days[0].id : '')
 
     try {
       const res = await fetch('/api/recommendations', {
@@ -185,9 +220,10 @@ export function ItinerarySuggestionsPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'itinerary',
-          destination: extractCity(trip),
+          destination: city,
           country: trip.country,
           duration: tripDurationDays(trip),
+          category: cat.id,
           existingItems: existingNames,
         }),
       })
@@ -199,6 +235,14 @@ export function ItinerarySuggestionsPanel({
     } finally {
       setLoading(false)
     }
+  }
+
+  function goBack() {
+    setStep('categories')
+    setActiveCategory(null)
+    setSuggestions([])
+    setSelected(new Set())
+    setError(null)
   }
 
   function toggle(idx: number) {
@@ -223,7 +267,7 @@ export function ItinerarySuggestionsPanel({
         day_id:      selectedDayId,
         trip_id:     trip.id,
         title:       s.name,
-        type:        mapCategory(s.category),
+        type:        activeCategory?.itemType ?? 'activity',
         description: s.description || null,
         start_time:  s.suggestedTime || null,
         cost:        0,
@@ -252,11 +296,11 @@ export function ItinerarySuggestionsPanel({
 
   return (
     <>
-      {/* Trigger button */}
+      {/* Trigger */}
       <Button
         variant="outline"
         size="sm"
-        onClick={fetchSuggestions}
+        onClick={openPanel}
         className="gap-1.5 shrink-0 border-violet-200 text-violet-700 hover:bg-violet-50 hover:border-violet-300 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950"
       >
         <Sparkles className="h-3.5 w-3.5" />
@@ -266,51 +310,89 @@ export function ItinerarySuggestionsPanel({
       {/* Panel */}
       <Dialog open={open} onOpenChange={v => { if (!v && !adding) setOpen(false) }}>
         <DialogContent className="max-w-lg max-h-[88vh] flex flex-col gap-0 p-0">
-          {/* Header */}
+
+          {/* Header — always visible */}
           <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/50 shrink-0">
             <DialogTitle className="flex items-center gap-2 text-base">
               <Sparkles className="h-4 w-4 text-violet-500" />
               Suggestions
-              <span className="text-sm font-normal text-muted-foreground">
-                — {extractCity(trip)}
-              </span>
+              <span className="text-sm font-normal text-muted-foreground">— {city}</span>
             </DialogTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Select activities to add to a day in your itinerary.
-            </p>
+
+            {step === 'categories' && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                What kind of activities are you looking for? Choose a category.
+              </p>
+            )}
+            {step === 'results' && activeCategory && (
+              <div className="flex items-center gap-2 mt-1">
+                <button
+                  onClick={goBack}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  {activeCategory.name}
+                </button>
+                {loading && (
+                  <span className="text-xs text-muted-foreground">
+                    · Finding the best {activeCategory.name.toLowerCase()} in {city}…
+                  </span>
+                )}
+              </div>
+            )}
           </DialogHeader>
 
-          {/* Scrollable list */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2.5 min-h-0">
-            {loading && Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto min-h-0">
 
-            {error && (
-              <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-5 text-center">
-                <p className="text-sm text-destructive mb-3">{error}</p>
-                <Button variant="outline" size="sm" onClick={fetchSuggestions} className="gap-1.5">
-                  <RefreshCw className="h-3.5 w-3.5" /> Try again
-                </Button>
+            {/* Step 1: Category picker */}
+            {step === 'categories' && (
+              <div className="px-5 py-5">
+                <div className="grid grid-cols-2 gap-3">
+                  {CATEGORIES.map(cat => (
+                    <CategoryCard key={cat.id} cat={cat} onClick={() => selectCategory(cat)} />
+                  ))}
+                </div>
               </div>
             )}
 
-            {!loading && !error && suggestions.length === 0 && (
-              <div className="py-12 text-center text-muted-foreground text-sm">No suggestions returned.</div>
-            )}
+            {/* Step 2: Results */}
+            {step === 'results' && (
+              <div className="px-5 py-4 space-y-2.5">
+                {loading && Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
 
-            {!loading && !error && suggestions.map((s, i) => (
-              <SuggestionCard
-                key={i}
-                suggestion={s}
-                selected={selected.has(i)}
-                onToggle={() => toggle(i)}
-              />
-            ))}
+                {error && (
+                  <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-5 text-center">
+                    <p className="text-sm text-destructive mb-3">{error}</p>
+                    <Button
+                      variant="outline" size="sm"
+                      onClick={() => activeCategory && selectCategory(activeCategory)}
+                      className="gap-1.5"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" /> Try again
+                    </Button>
+                  </div>
+                )}
+
+                {!loading && !error && suggestions.length === 0 && (
+                  <div className="py-12 text-center text-muted-foreground text-sm">No suggestions returned.</div>
+                )}
+
+                {!loading && !error && suggestions.map((s, i) => (
+                  <SuggestionCard
+                    key={i}
+                    suggestion={s}
+                    selected={selected.has(i)}
+                    onToggle={() => toggle(i)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Footer */}
-          {!loading && !error && suggestions.length > 0 && (
+          {/* Footer — only in results step with suggestions */}
+          {step === 'results' && !loading && !error && suggestions.length > 0 && (
             <div className="px-5 py-4 border-t border-border/50 shrink-0 space-y-3">
-              {/* Day selector — shown only when multiple days exist */}
               {needsDayPick && selCount > 0 && (
                 <div className="space-y-1.5">
                   <p className="text-xs font-medium text-muted-foreground">Add to which day?</p>
@@ -328,7 +410,6 @@ export function ItinerarySuggestionsPanel({
                   </Select>
                 </div>
               )}
-
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => setOpen(false)} className="flex-1" disabled={adding}>
                   Cancel
@@ -342,7 +423,7 @@ export function ItinerarySuggestionsPanel({
                     ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Adding…</>
                     : selCount > 0
                       ? `Add ${selCount} Activit${selCount !== 1 ? 'ies' : 'y'}`
-                      : 'Select activities'
+                      : 'Select activities above'
                   }
                 </Button>
               </div>
