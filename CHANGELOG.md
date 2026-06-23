@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-06-23 (Auto-create itinerary days on trip creation)
+
+### Added — `components/trips/create-trip-form.tsx`
+
+After inserting a new trip and its default checklist items, `handleSubmit` now auto-generates `itinerary_days` rows when both `start_date` and `end_date` are provided:
+
+- Calculates inclusive day count (`end - start + 1`), capped at 30 days.
+- Bulk-inserts one row per day with `day_number`, `date`, and `is_completed: false`.
+- On insert failure: logs the error to console but does not block trip creation — days can always be added manually.
+- No dates set: skips silently, no rows inserted.
+
+---
+
 ## 2026-06-23 (Itinerary stat card: show X/Y days planned format)
 
 ### Changed — `app/(dashboard)/trips/[id]/overview/page.tsx`, `components/trips/trip-overview-content.tsx`

@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { parseISO, addDays, format } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import { CURRENCY_OPTIONS } from '@/lib/types'
 import { getCityOrCountryImage, getDestinationImage } from '@/lib/utils'
@@ -105,6 +106,25 @@ export function CreateTripForm() {
         { trip_id: data.id, category: 'packing',   title: 'Camera',              order_index: 3 },
         { trip_id: data.id, category: 'packing',   title: 'Travel Adapter',      order_index: 4 },
       ])
+
+      if (form.start_date && form.end_date) {
+        const start = parseISO(form.start_date)
+        const end   = parseISO(form.end_date)
+        const totalDays = Math.min(
+          Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1,
+          30,
+        )
+        if (totalDays > 0) {
+          const daysArray = Array.from({ length: totalDays }, (_, i) => ({
+            trip_id:      data.id,
+            day_number:   i + 1,
+            date:         format(addDays(start, i), 'yyyy-MM-dd'),
+            is_completed: false,
+          }))
+          const { error: daysError } = await supabase.from('itinerary_days').insert(daysArray)
+          if (daysError) console.error('Failed to auto-create itinerary days:', daysError.message)
+        }
+      }
 
       toast.success('Trip created!')
       router.push(`/trips/${data.id}/overview`)
