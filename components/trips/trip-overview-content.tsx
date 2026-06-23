@@ -18,9 +18,10 @@ interface Props {
   locations: Location[]
   budgetItems: BudgetItem[]
   itineraryDaysCount: number
+  itineraryDaysWithActivities: number
 }
 
-export function TripOverviewContent({ trip, checklist, locations, budgetItems, itineraryDaysCount }: Props) {
+export function TripOverviewContent({ trip, checklist, locations, budgetItems, itineraryDaysCount, itineraryDaysWithActivities }: Props) {
   const checklistTotal = checklist.length
   const checklistDone  = checklist.filter(c => c.completed).length
   const checklistPct   = checklistTotal > 0 ? Math.round((checklistDone / checklistTotal) * 100) : 0
@@ -132,8 +133,13 @@ export function TripOverviewContent({ trip, checklist, locations, budgetItems, i
               </div>
               <span className="text-xs font-medium text-muted-foreground">Itinerary</span>
             </div>
-            <div className="h-1.5 mb-2" />
-            <p className="text-2xl font-bold">{itineraryDaysCount}</p>
+            <Progress
+              value={itineraryDaysCount > 0 ? Math.round((itineraryDaysWithActivities / itineraryDaysCount) * 100) : 0}
+              className="h-1.5 mb-2"
+            />
+            <p className="text-2xl font-bold">
+              {itineraryDaysCount > 0 ? `${itineraryDaysWithActivities}/${itineraryDaysCount}` : '0'}
+            </p>
             <p className="text-xs text-muted-foreground mb-2">days planned</p>
             <Link href={`/trips/${trip.id}/itinerary`}>
               <Button size="sm" variant="ghost" className="w-full gap-1 text-xs h-7">

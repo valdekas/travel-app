@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-06-23 (Itinerary stat card: show X/Y days planned format)
+
+### Changed — `app/(dashboard)/trips/[id]/overview/page.tsx`, `components/trips/trip-overview-content.tsx`
+
+**Overview page:** Extended `itinerary_days` query from `select('id')` to `select('id, itinerary_items(id)')` to fetch which days have activities. Computes `daysWithActivities` (days with ≥1 activity) and passes it as new `itineraryDaysWithActivities` prop.
+
+**Stat card:** Replaced the empty placeholder div with a real Progress bar (`daysWithActivities/totalDays * 100`). Big number now shows `X/Y` format (e.g. "3/5") instead of just total days. Falls back to "0" when no days exist. Subtitle stays "days planned".
+
+---
+
 ## 2026-06-23 (Fix Dashboard Countries Visited to match World Map exactly)
 
 ### Fixed — `components/dashboard/dashboard-content.tsx`

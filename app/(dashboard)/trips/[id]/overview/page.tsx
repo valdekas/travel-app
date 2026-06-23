@@ -23,10 +23,14 @@ export default async function TripOverviewPage({ params }: Props) {
     supabase.from('checklist_items').select('*').eq('trip_id', id),
     supabase.from('locations').select('*').eq('trip_id', id),
     supabase.from('budget_items').select('*').eq('trip_id', id),
-    supabase.from('itinerary_days').select('id').eq('trip_id', id),
+    supabase.from('itinerary_days').select('id, itinerary_items(id)').eq('trip_id', id),
   ])
 
   if (!trip) notFound()
+
+  type DayWithItems = { id: string; itinerary_items: { id: string }[] }
+  const days = itineraryDays as DayWithItems[] | null
+  const daysWithActivities = (days ?? []).filter(d => d.itinerary_items.length > 0).length
 
   return (
     <TripOverviewContent
@@ -35,6 +39,7 @@ export default async function TripOverviewPage({ params }: Props) {
       locations={locations ?? []}
       budgetItems={budgetItems ?? []}
       itineraryDaysCount={itineraryDays?.length ?? 0}
+      itineraryDaysWithActivities={daysWithActivities}
     />
   )
 }
