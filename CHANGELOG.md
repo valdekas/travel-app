@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-06-23 (Fix Suggestions button label and city-specific prompts)
+
+### Fixed — `components/trips/places-suggestions-panel.tsx`, `components/itinerary/itinerary-suggestions-panel.tsx`, `app/api/recommendations/route.ts`
+
+- Removed "AI" from all user-visible text: button labels now read "✨ Suggestions", dialog titles read "Suggestions"
+- API route prompts now lead with the specific city (`destination`) rather than country — e.g. "Chicago, United States" not "United States". Added explicit instruction to suggest real, well-known spots *in that city*, not generic country-level attractions. Chicago trip now correctly returns Millennium Park, deep dish restaurants, Architecture Boat Tour, etc.
+- Location string builds as `city, country` when city ≠ country; falls back to country alone when no city is set
+
+---
+
 ## 2026-06-23 (AI Suggestions for Places and Itinerary tabs)
 
 ### Added — `app/api/recommendations/route.ts`, `components/trips/places-suggestions-panel.tsx`, `components/itinerary/itinerary-suggestions-panel.tsx`; wired into `components/trips/places-content.tsx` + `components/itinerary/itinerary-content.tsx`

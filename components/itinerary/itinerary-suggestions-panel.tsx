@@ -254,7 +254,7 @@ export function ItinerarySuggestionsPanel({
         className="gap-1.5 shrink-0 border-violet-200 text-violet-700 hover:bg-violet-50 hover:border-violet-300 dark:border-violet-800 dark:text-violet-400 dark:hover:bg-violet-950"
       >
         <Sparkles className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">AI </span>Suggestions
+        Suggestions
       </Button>
 
       {/* Panel */}
@@ -264,7 +264,7 @@ export function ItinerarySuggestionsPanel({
           <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/50 shrink-0">
             <DialogTitle className="flex items-center gap-2 text-base">
               <Sparkles className="h-4 w-4 text-violet-500" />
-              AI Activity Suggestions
+              Suggestions
               <span className="text-sm font-normal text-muted-foreground">
                 — {trip.city || trip.country}
               </span>
