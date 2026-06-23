@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuSeparator,
@@ -112,7 +113,7 @@ function ItemDisplay({
         variant="ghost"
         size="icon"
         className="hidden md:inline-flex h-7 w-7 opacity-0 group-hover:opacity-100 flex-shrink-0 text-destructive hover:bg-destructive/10"
-        onClick={() => { if (confirm('Delete this task?')) onDelete(item.id) }}
+        onClick={() => onDelete(item.id)}
       >
         <Trash2 className="h-3.5 w-3.5" />
       </Button>
@@ -134,7 +135,7 @@ function ItemDisplay({
               {item.completed ? 'Mark incomplete' : 'Mark complete'}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={() => { if (confirm('Delete this task?')) onDelete(item.id) }}>
+            <DropdownMenuItem variant="destructive" onClick={() => onDelete(item.id)}>
               <Trash2 className="h-4 w-4" />
               Delete
             </DropdownMenuItem>
@@ -303,6 +304,7 @@ export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps
   const [items, setItems] = useState<ChecklistItem[]>(initialItems)
   const [addOpen, setAddOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const supabase = createClient()
 
   const [form, setForm] = useState({
@@ -466,7 +468,7 @@ export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps
                       <CategoryDndList
                         items={catItems}
                         onToggle={toggleItem}
-                        onDelete={deleteItem}
+                        onDelete={setPendingDeleteId}
                         onReorder={reordered => handleReorder(cat, reordered)}
                       />
                     </>
@@ -522,6 +524,15 @@ export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={open => { if (!open) setPendingDeleteId(null) }}
+        title="Delete Item"
+        description="This will permanently remove this item from your checklist."
+        onConfirm={() => { if (pendingDeleteId) deleteItem(pendingDeleteId) }}
+        confirmLabel="Delete"
+      />
     </div>
   )
 }

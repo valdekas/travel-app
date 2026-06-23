@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-06-23 (Replace all native confirm() dialogs with styled ConfirmDialog)
+
+### Added — `components/ui/confirm-dialog.tsx`
+
+New shared `ConfirmDialog` component matching the styled delete dialog already used in `trip-detail-shell.tsx`. Props: `open`, `onOpenChange`, `title`, `description`, `onConfirm`, `confirmLabel`. Always renders a red destructive confirm button, a Cancel outline button, and a "⚠️ This action cannot be undone." warning banner.
+
+### Fixed — `components/itinerary/itinerary-content.tsx`
+
+Replaced both `confirm()` calls (delete activity, delete day) with `ConfirmDialog`. Added `PendingDelete` union type state (`{ type: 'item' } | { type: 'day' }`). Dialog title and description switch based on pending type. Actual delete functions now execute only after confirmation.
+
+### Fixed — `components/checklist/checklist-content.tsx`
+
+Removed `confirm()` from both delete paths in `ChecklistItemRow` (desktop hover button + mobile dropdown). Parent now intercepts via `setPendingDeleteId` instead of calling `deleteItem` directly. `ConfirmDialog` executes `deleteItem` on confirm.
+
+### Fixed — `components/trips/places-content.tsx`
+
+Replaced `confirm()` in `deleteLocation`. Both JSX call sites (`onDelete` prop) now point to `setPendingDeleteId`. `ConfirmDialog` calls `deleteLocation` on confirm.
+
+### Fixed — `components/budget/budget-content.tsx`
+
+Replaced both `confirm()` calls (desktop delete button + mobile dropdown). Both now call `setPendingDeleteId`. `ConfirmDialog` calls `deleteItem` on confirm.
+
+---
+
 ## 2026-06-23 (Fix Trip Readiness budget score: measure planning completeness)
 
 ### Fixed — `components/dashboard/trip-readiness-widget.tsx`

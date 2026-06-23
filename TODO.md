@@ -46,6 +46,7 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [x] Improve Overview cards — Budget-style left-border accents, icon pills, trip notes card
 * [x] Fix Trip Readiness scoring — itinerary/budget/places were binary flags; now proportional
 * [x] Fix Trip Readiness budget score — now measures budgetPlanned/tripBudget ratio, not existence
+* [x] Replace all native confirm() dialogs — new ConfirmDialog component used across Itinerary, Checklist, Places, Budget
 * [ ] Better spacing and alignment
 
 ## Places

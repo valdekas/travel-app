@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuSeparator,
@@ -491,6 +492,7 @@ export function PlacesContent({ trip, initialLocations }: PlacesContentProps) {
   const [editingLocation, setEditingLocation] = useState<Location | null>(null)
   const [editForm, setEditForm] = useState<LocationForm>(EMPTY_FORM)
   const [editShowAdvanced, setEditShowAdvanced] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const editPlaceRef = useRef<PlaceRef>(EMPTY_PLACE_REF)
   // Track whether user selected a new Google Place during edit
   const editPlaceChanged = useRef(false)
@@ -612,7 +614,6 @@ export function PlacesContent({ trip, initialLocations }: PlacesContentProps) {
   }
 
   async function deleteLocation(id: string) {
-    if (!confirm('Delete this location?')) return
     await supabase.from('locations').delete().eq('id', id)
     setLocations(prev => prev.filter(l => l.id !== id))
     toast.success('Location deleted')
@@ -714,7 +715,7 @@ export function PlacesContent({ trip, initialLocations }: PlacesContentProps) {
                   currency={trip.currency}
                   onToggle={toggleVisited}
                   onEdit={openEdit}
-                  onDelete={deleteLocation}
+                  onDelete={setPendingDeleteId}
                   onReorder={reordered => handleReorder('unvisited', reordered)}
                 />
               </CardContent>
@@ -732,7 +733,7 @@ export function PlacesContent({ trip, initialLocations }: PlacesContentProps) {
                   currency={trip.currency}
                   onToggle={toggleVisited}
                   onEdit={openEdit}
-                  onDelete={deleteLocation}
+                  onDelete={setPendingDeleteId}
                   onReorder={reordered => handleReorder('visited', reordered)}
                 />
               </CardContent>
@@ -776,6 +777,15 @@ export function PlacesContent({ trip, initialLocations }: PlacesContentProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={open => { if (!open) setPendingDeleteId(null) }}
+        title="Delete Place"
+        description="This will permanently remove this place from your trip."
+        onConfirm={() => { if (pendingDeleteId) deleteLocation(pendingDeleteId) }}
+        confirmLabel="Delete"
+      />
     </div>
   )
 }

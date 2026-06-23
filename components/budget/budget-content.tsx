@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuSeparator,
@@ -132,6 +133,7 @@ export function BudgetContent({ trip, initialItems }: BudgetContentProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const supabase = createClient()
 
   const { resolvedTheme } = useTheme()
@@ -505,7 +507,7 @@ export function BudgetContent({ trip, initialItems }: BudgetContentProps) {
                         <Button
                           variant="ghost" size="icon"
                           className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                          onClick={() => { if (confirm('Delete this expense?')) deleteItem(item.id) }}
+                          onClick={() => setPendingDeleteId(item.id)}
                           aria-label="Delete expense"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -533,7 +535,7 @@ export function BudgetContent({ trip, initialItems }: BudgetContentProps) {
                               {item.paid ? 'Mark as Pending' : 'Mark as Paid'}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem variant="destructive" onClick={() => { if (confirm('Delete this expense?')) deleteItem(item.id) }}>
+                            <DropdownMenuItem variant="destructive" onClick={() => setPendingDeleteId(item.id)}>
                               <Trash2 className="h-4 w-4" />
                               Delete
                             </DropdownMenuItem>
@@ -654,6 +656,15 @@ export function BudgetContent({ trip, initialItems }: BudgetContentProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={open => { if (!open) setPendingDeleteId(null) }}
+        title="Delete Expense"
+        description="This will permanently remove this expense from your budget."
+        onConfirm={() => { if (pendingDeleteId) deleteItem(pendingDeleteId) }}
+        confirmLabel="Delete"
+      />
     </div>
   )
 }

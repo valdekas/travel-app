@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuSeparator,
@@ -590,6 +591,11 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
   const [editItem, setEditItem] = useState<ItineraryItem | null>(null)
   const [saving, setSaving] = useState(false)
 
+  type PendingDelete =
+    | { type: 'item'; dayId: string; itemId: string }
+    | { type: 'day'; dayId: string }
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
+
   const [itemForm, setItemForm] = useState<ItemFormState>(EMPTY_FORM)
   const locationRef = useRef<LocationRef>(EMPTY_LOCATION)
 
@@ -790,7 +796,6 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
   }
 
   async function deleteItem(dayId: string, itemId: string) {
-    if (!confirm('Delete this activity?')) return
     await supabase.from('itinerary_items').delete().eq('id', itemId)
     setDays(d => d.map(day =>
       day.id === dayId ? { ...day, items: day.items.filter(i => i.id !== itemId) } : day
@@ -799,10 +804,16 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
   }
 
   async function deleteDay(dayId: string) {
-    if (!confirm('Delete this day and all its activities?')) return
     await supabase.from('itinerary_days').delete().eq('id', dayId)
     setDays(d => d.filter(day => day.id !== dayId))
     toast.success('Day removed')
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return
+    if (pendingDelete.type === 'item') await deleteItem(pendingDelete.dayId, pendingDelete.itemId)
+    else await deleteDay(pendingDelete.dayId)
+    setPendingDelete(null)
   }
 
   async function toggleDayComplete(dayId: string) {
@@ -870,8 +881,8 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
               onDragCancel={handleDragCancel}
               onOpenAdd={openAdd}
               onEdit={openEdit}
-              onDelete={deleteItem}
-              onDeleteDay={deleteDay}
+              onDelete={(dayId, itemId) => setPendingDelete({ type: 'item', dayId, itemId })}
+              onDeleteDay={(dayId) => setPendingDelete({ type: 'day', dayId })}
               onToggleComplete={toggleDayComplete}
             />
           ))}
@@ -981,6 +992,19 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={open => { if (!open) setPendingDelete(null) }}
+        title={pendingDelete?.type === 'day' ? 'Delete Day' : 'Delete Activity'}
+        description={
+          pendingDelete?.type === 'day'
+            ? 'This will permanently remove this day and all its activities.'
+            : 'This will permanently remove this activity from your itinerary.'
+        }
+        onConfirm={confirmDelete}
+        confirmLabel="Delete"
+      />
     </div>
   )
 }
