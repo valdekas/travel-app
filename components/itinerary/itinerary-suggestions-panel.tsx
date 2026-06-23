@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Trip, ItineraryDay, ItineraryItem, ItineraryItemType } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { getCachedSuggestions, setCachedSuggestions } from '@/lib/utils/suggestions-cache'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -23,12 +24,12 @@ interface ActivityCategory {
 }
 
 const CATEGORIES: ActivityCategory[] = [
-  { id: 'restaurants and dining',          emoji: '🍽️', name: 'Dining',       description: 'Restaurants and cafés',          itemType: 'restaurant' },
-  { id: 'sightseeing and landmarks',       emoji: '🏛️', name: 'Sightseeing',  description: 'Landmarks and attractions',       itemType: 'attraction' },
-  { id: 'guided tours and experiences',    emoji: '🎯', name: 'Tours',        description: 'Guided tours and experiences',    itemType: 'tour'       },
-  { id: 'shopping and markets',            emoji: '🛍️', name: 'Shopping',     description: 'Markets and shopping areas',      itemType: 'shopping'   },
-  { id: 'nature and outdoor activities',   emoji: '🌿', name: 'Nature',       description: 'Parks, beaches, outdoors',        itemType: 'activity'   },
-  { id: 'nightlife and entertainment',     emoji: '🌙', name: 'Nightlife',    description: 'Bars, shows, entertainment',      itemType: 'other'      },
+  { id: 'restaurants and dining',        emoji: '🍽️', name: 'Dining',      description: 'Restaurants and cafés',       itemType: 'restaurant' },
+  { id: 'sightseeing and landmarks',     emoji: '🏛️', name: 'Sightseeing', description: 'Landmarks and attractions',    itemType: 'attraction' },
+  { id: 'guided tours and experiences',  emoji: '🎯', name: 'Tours',       description: 'Guided tours and experiences', itemType: 'tour'       },
+  { id: 'shopping and markets',          emoji: '🛍️', name: 'Shopping',    description: 'Markets and shopping areas',   itemType: 'shopping'   },
+  { id: 'nature and outdoor activities', emoji: '🌿', name: 'Nature',      description: 'Parks, beaches, outdoors',     itemType: 'activity'   },
+  { id: 'nightlife and entertainment',   emoji: '🌙', name: 'Nightlife',   description: 'Bars, shows, entertainment',   itemType: 'other'      },
 ]
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -40,6 +41,7 @@ interface ItinerarySuggestion {
   suggestedTime: string
   duration: string
   emoji: string
+  tip: string
 }
 
 type Step = 'categories' | 'results'
@@ -85,6 +87,8 @@ function SkeletonCard() {
             <div className="h-3 bg-muted rounded w-14" />
           </div>
           <div className="h-3 bg-muted rounded w-full" />
+          <div className="h-3 bg-muted rounded w-3/4" />
+          <div className="h-3 bg-muted rounded w-2/5" />
         </div>
       </div>
     </div>
@@ -120,6 +124,7 @@ function SuggestionCard({
           {suggestion.emoji}
         </div>
         <div className="flex-1 min-w-0">
+          {/* Name + badge */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-sm">{suggestion.name}</span>
             <Badge variant="outline" className="text-[10px] capitalize shrink-0">
@@ -131,6 +136,8 @@ function SuggestionCard({
               </span>
             )}
           </div>
+
+          {/* Time + duration */}
           <div className="flex items-center gap-3 mt-1">
             {suggestion.suggestedTime && (
               <span className="text-[11px] text-muted-foreground flex items-center gap-1">
@@ -143,9 +150,18 @@ function SuggestionCard({
               </span>
             )}
           </div>
+
+          {/* Description */}
           <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
             {suggestion.description}
           </p>
+
+          {/* Tip */}
+          {suggestion.tip && (
+            <p className="text-[11px] text-muted-foreground mt-1">
+              💡 {suggestion.tip}
+            </p>
+          )}
         </div>
       </div>
     </button>
@@ -184,15 +200,15 @@ export function ItinerarySuggestionsPanel({
   existingNames,
   onAdded,
 }: ItinerarySuggestionsPanelProps) {
-  const [open, setOpen]                   = useState(false)
-  const [step, setStep]                   = useState<Step>('categories')
+  const [open, setOpen]                     = useState(false)
+  const [step, setStep]                     = useState<Step>('categories')
   const [activeCategory, setActiveCategory] = useState<ActivityCategory | null>(null)
-  const [loading, setLoading]             = useState(false)
-  const [error, setError]                 = useState<string | null>(null)
-  const [suggestions, setSuggestions]     = useState<ItinerarySuggestion[]>([])
-  const [selected, setSelected]           = useState<Set<number>>(new Set())
-  const [selectedDayId, setSelectedDayId] = useState<string>('')
-  const [adding, setAdding]               = useState(false)
+  const [loading, setLoading]               = useState(false)
+  const [error, setError]                   = useState<string | null>(null)
+  const [suggestions, setSuggestions]       = useState<ItinerarySuggestion[]>([])
+  const [selected, setSelected]             = useState<Set<number>>(new Set())
+  const [selectedDayId, setSelectedDayId]   = useState<string>('')
+  const [adding, setAdding]                 = useState(false)
   const supabase = createClient()
   const city = extractCity(trip)
 
@@ -209,11 +225,20 @@ export function ItinerarySuggestionsPanel({
   async function selectCategory(cat: ActivityCategory) {
     setActiveCategory(cat)
     setStep('results')
-    setLoading(true)
     setError(null)
     setSuggestions([])
     setSelected(new Set())
 
+    // Check cache first — instant load, no API call
+    const cacheKey = `suggestions_${trip.id}_${cat.id}_itinerary`
+    const cached = getCachedSuggestions<ItinerarySuggestion>(cacheKey)
+    if (cached) {
+      setLoading(false)
+      setSuggestions(cached)
+      return
+    }
+
+    setLoading(true)
     try {
       const res = await fetch('/api/recommendations', {
         method: 'POST',
@@ -229,7 +254,9 @@ export function ItinerarySuggestionsPanel({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to fetch suggestions')
-      setSuggestions(data.suggestions ?? [])
+      const items: ItinerarySuggestion[] = data.suggestions ?? []
+      setCachedSuggestions(cacheKey, items)
+      setSuggestions(items)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
     } finally {
@@ -243,6 +270,7 @@ export function ItinerarySuggestionsPanel({
     setSuggestions([])
     setSelected(new Set())
     setError(null)
+    setLoading(false)
   }
 
   function toggle(idx: number) {
@@ -311,7 +339,7 @@ export function ItinerarySuggestionsPanel({
       <Dialog open={open} onOpenChange={v => { if (!v && !adding) setOpen(false) }}>
         <DialogContent className="max-w-lg max-h-[88vh] flex flex-col gap-0 p-0">
 
-          {/* Header — always visible */}
+          {/* Header */}
           <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/50 shrink-0">
             <DialogTitle className="flex items-center gap-2 text-base">
               <Sparkles className="h-4 w-4 text-violet-500" />

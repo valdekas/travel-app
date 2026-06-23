@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-06-24 (Suggestions: 30-min cache + richer suggestion cards)
+
+### Added/Changed — `lib/utils/suggestions-cache.ts` (new), `app/api/recommendations/route.ts`, `components/trips/places-suggestions-panel.tsx`, `components/itinerary/itinerary-suggestions-panel.tsx`
+
+**Client-side 30-minute sessionStorage cache (`lib/utils/suggestions-cache.ts`):**
+- New `getCachedSuggestions<T>(key)` / `setCachedSuggestions<T>(key, data)` helpers
+- Cache key format: `suggestions_${trip.id}_${categoryId}_${type}` (unique per trip + category + panel type)
+- TTL: 30 minutes — expired entries are auto-removed on read
+- All sessionStorage calls wrapped in try/catch for private browsing compatibility
+- Cache hit: results appear instantly, loading state skipped, no API call made
+- Only successful responses are cached; errors are never stored
+- `goBack()` now also resets `loading` state to prevent stale state on rapid navigation
+
+**Richer suggestion cards — places:**
+New fields returned by API and displayed on each card:
+- `priceRange` — small monospace badge ("$" / "$$" / "$$$" / "$$$$" / "Free") next to category badge
+- `whyVisit` — one compelling reason, shown in muted italic below description
+- `bestTimeToVisit` — shown with 🕐 prefix in meta row
+- `tip` — one insider tip, shown with 💡 prefix in meta row
+- `mustTry` — signature dish/drink for Restaurants and Bars only (null for all other categories), shown with 🍽️ prefix
+
+**Richer suggestion cards — itinerary:**
+- `tip` — one practical tip added to each activity card, shown with 💡 prefix below description
+
+**API route updates (`route.ts`):**
+- Places prompt now requests all 9 fields including `mustTry` (with explicit null instruction for non-food categories)
+- Itinerary prompt now requests `tip` field
+- `max_tokens` increased to 4000 to accommodate larger responses
+- Example objects in prompts updated to include all new fields
+
+---
+
 ## 2026-06-24 (Suggestions: category-first two-step panel redesign)
 
 ### Changed — `app/api/recommendations/route.ts`, `components/trips/places-suggestions-panel.tsx`, `components/itinerary/itinerary-suggestions-panel.tsx`

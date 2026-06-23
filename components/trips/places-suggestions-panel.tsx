@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Trip, LocationType } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { getCachedSuggestions, setCachedSuggestions } from '@/lib/utils/suggestions-cache'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -21,12 +22,12 @@ interface PlaceCategory {
 }
 
 const CATEGORIES: PlaceCategory[] = [
-  { id: 'Restaurants',   emoji: '🍽️', name: 'Restaurants',   description: 'Best local dining spots',      locationType: 'restaurant' },
-  { id: 'Attractions',   emoji: '🏛️', name: 'Attractions',   description: 'Must-see landmarks',            locationType: 'attraction' },
-  { id: 'Viewpoints',    emoji: '🌅', name: 'Viewpoints',    description: 'Scenic panoramic spots',        locationType: 'viewpoint'  },
-  { id: 'Museums',       emoji: '🎨', name: 'Museums',       description: 'Culture and galleries',         locationType: 'attraction' },
-  { id: 'Bars',          emoji: '🍸', name: 'Bars',          description: 'Nightlife and cocktails',       locationType: 'restaurant' },
-  { id: 'Parks & Nature',emoji: '🌿', name: 'Parks & Nature','description': 'Parks, gardens, beaches',     locationType: 'attraction' },
+  { id: 'Restaurants',    emoji: '🍽️', name: 'Restaurants',    description: 'Best local dining spots',   locationType: 'restaurant' },
+  { id: 'Attractions',    emoji: '🏛️', name: 'Attractions',    description: 'Must-see landmarks',         locationType: 'attraction' },
+  { id: 'Viewpoints',     emoji: '🌅', name: 'Viewpoints',     description: 'Scenic panoramic spots',     locationType: 'viewpoint'  },
+  { id: 'Museums',        emoji: '🎨', name: 'Museums',        description: 'Culture and galleries',      locationType: 'attraction' },
+  { id: 'Bars',           emoji: '🍸', name: 'Bars',           description: 'Nightlife and cocktails',    locationType: 'restaurant' },
+  { id: 'Parks & Nature', emoji: '🌿', name: 'Parks & Nature', description: 'Parks, gardens, beaches',    locationType: 'attraction' },
 ]
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -34,8 +35,13 @@ const CATEGORIES: PlaceCategory[] = [
 interface PlaceSuggestion {
   name: string
   category: string
-  description: string
   emoji: string
+  description: string
+  whyVisit: string
+  priceRange: string
+  bestTimeToVisit: string
+  mustTry: string | null
+  tip: string
 }
 
 type Step = 'categories' | 'results'
@@ -65,10 +71,16 @@ function SkeletonCard() {
         <div className="flex-1 space-y-2 pt-0.5">
           <div className="flex items-center gap-2">
             <div className="h-3.5 bg-muted rounded w-2/5" />
-            <div className="h-4 bg-muted rounded w-16 ml-1" />
+            <div className="h-4 bg-muted rounded w-12" />
+            <div className="h-4 bg-muted rounded w-8" />
           </div>
           <div className="h-3 bg-muted rounded w-full" />
-          <div className="h-3 bg-muted rounded w-3/4" />
+          <div className="h-3 bg-muted rounded w-4/5" />
+          <div className="h-3 bg-muted rounded w-3/5" />
+          <div className="flex gap-3">
+            <div className="h-3 bg-muted rounded w-24" />
+            <div className="h-3 bg-muted rounded w-28" />
+          </div>
         </div>
       </div>
     </div>
@@ -104,20 +116,56 @@ function SuggestionCard({
           {suggestion.emoji}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Name + badges */}
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-medium text-sm">{suggestion.name}</span>
             <Badge variant="outline" className="text-[10px] capitalize shrink-0">
               {suggestion.category}
             </Badge>
+            {suggestion.priceRange && (
+              <Badge variant="outline" className="text-[10px] shrink-0 font-mono tracking-tight">
+                {suggestion.priceRange}
+              </Badge>
+            )}
             {selected && (
               <span className="ml-auto text-[11px] font-semibold text-violet-600 dark:text-violet-400 shrink-0">
                 ✓ Selected
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+
+          {/* Description */}
+          <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
             {suggestion.description}
           </p>
+
+          {/* Why visit */}
+          {suggestion.whyVisit && (
+            <p className="text-[11px] text-muted-foreground/70 italic mt-0.5 leading-relaxed">
+              {suggestion.whyVisit}
+            </p>
+          )}
+
+          {/* Best time + tip */}
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+            {suggestion.bestTimeToVisit && (
+              <span className="text-[11px] text-muted-foreground">
+                🕐 {suggestion.bestTimeToVisit}
+              </span>
+            )}
+            {suggestion.tip && (
+              <span className="text-[11px] text-muted-foreground">
+                💡 {suggestion.tip}
+              </span>
+            )}
+          </div>
+
+          {/* Must try */}
+          {suggestion.mustTry && (
+            <p className="text-[11px] text-muted-foreground mt-1">
+              🍽️ Must try: {suggestion.mustTry}
+            </p>
+          )}
         </div>
       </div>
     </button>
@@ -150,14 +198,14 @@ interface PlacesSuggestionsPanelProps {
 }
 
 export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesSuggestionsPanelProps) {
-  const [open, setOpen]                 = useState(false)
-  const [step, setStep]                 = useState<Step>('categories')
+  const [open, setOpen]                     = useState(false)
+  const [step, setStep]                     = useState<Step>('categories')
   const [activeCategory, setActiveCategory] = useState<PlaceCategory | null>(null)
-  const [loading, setLoading]           = useState(false)
-  const [error, setError]               = useState<string | null>(null)
-  const [suggestions, setSuggestions]   = useState<PlaceSuggestion[]>([])
-  const [selected, setSelected]         = useState<Set<number>>(new Set())
-  const [adding, setAdding]             = useState(false)
+  const [loading, setLoading]               = useState(false)
+  const [error, setError]                   = useState<string | null>(null)
+  const [suggestions, setSuggestions]       = useState<PlaceSuggestion[]>([])
+  const [selected, setSelected]             = useState<Set<number>>(new Set())
+  const [adding, setAdding]                 = useState(false)
   const supabase = createClient()
   const city = extractCity(trip)
 
@@ -173,11 +221,20 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
   async function selectCategory(cat: PlaceCategory) {
     setActiveCategory(cat)
     setStep('results')
-    setLoading(true)
     setError(null)
     setSuggestions([])
     setSelected(new Set())
 
+    // Check cache first — instant load, no API call
+    const cacheKey = `suggestions_${trip.id}_${cat.id}_places`
+    const cached = getCachedSuggestions<PlaceSuggestion>(cacheKey)
+    if (cached) {
+      setLoading(false)
+      setSuggestions(cached)
+      return
+    }
+
+    setLoading(true)
     try {
       const res = await fetch('/api/recommendations', {
         method: 'POST',
@@ -193,7 +250,9 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to fetch suggestions')
-      setSuggestions(data.suggestions ?? [])
+      const items: PlaceSuggestion[] = data.suggestions ?? []
+      setCachedSuggestions(cacheKey, items)
+      setSuggestions(items)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
     } finally {
@@ -207,6 +266,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
     setSuggestions([])
     setSelected(new Set())
     setError(null)
+    setLoading(false)
   }
 
   function toggle(idx: number) {
@@ -262,7 +322,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
       <Dialog open={open} onOpenChange={v => { if (!v && !adding) setOpen(false) }}>
         <DialogContent className="max-w-lg max-h-[88vh] flex flex-col gap-0 p-0">
 
-          {/* Header — always visible */}
+          {/* Header */}
           <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/50 shrink-0">
             <DialogTitle className="flex items-center gap-2 text-base">
               <Sparkles className="h-4 w-4 text-violet-500" />
@@ -270,7 +330,6 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
               <span className="text-sm font-normal text-muted-foreground">— {city}</span>
             </DialogTitle>
 
-            {/* Step sub-header */}
             {step === 'categories' && (
               <p className="text-xs text-muted-foreground mt-0.5">
                 What are you looking for? Choose a category to get 15 curated suggestions.

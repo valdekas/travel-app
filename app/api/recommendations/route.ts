@@ -15,13 +15,11 @@ export async function POST(req: NextRequest) {
       ? `\nDo NOT suggest any of these already-added items: ${(existingItems as string[]).join(', ')}.`
       : ''
 
-  // Location strings
   const location = destination && destination !== country
     ? `${destination}, ${country}`
     : country
   const cityName = destination?.split(',')[0]?.trim() || country
 
-  // Category label — fall back to "popular spots" if somehow omitted
   const categoryLabel = (category as string) || 'popular spots'
 
   let prompt: string
@@ -38,11 +36,16 @@ Return exactly 15 items. Respond ONLY with a valid JSON array. No markdown, no c
 Each object must have exactly these fields:
 - name: string (specific place name)
 - category: string (short label, e.g. "Restaurant", "Museum", "Viewpoint")
-- description: string (exactly 1 sentence about why it's worth visiting in ${cityName})
 - emoji: string (one relevant emoji)
+- description: string (1-2 sentences about what the place is)
+- whyVisit: string (one compelling reason why tourists love it)
+- priceRange: string (exactly one of: "Free", "$", "$$", "$$$", "$$$$")
+- bestTimeToVisit: string (e.g. "Morning", "Evening", "Weekends", "Year-round")
+- mustTry: string | null (for Restaurants and Bars: the single most iconic dish or drink; for ALL other categories: use null)
+- tip: string (one practical insider tip, e.g. "Book in advance", "Go at sunset for best photos", "Free on Tuesdays")
 
 Example for Chicago Restaurants:
-[{"name":"Lou Malnati's Pizzeria","category":"Restaurant","description":"Chicago's most beloved deep dish pizza chain, serving buttery crust pies stuffed with sausage and vine-ripened tomatoes since 1971.","emoji":"🍕"}]`
+[{"name":"Lou Malnati's Pizzeria","category":"Restaurant","emoji":"🍕","description":"Chicago's most beloved deep dish pizza chain, serving buttery crust pies stuffed with sausage and vine-ripened tomatoes since 1971.","whyVisit":"Widely considered the gold standard of Chicago-style deep dish — a cult favourite among locals and visitors alike.","priceRange":"$$","bestTimeToVisit":"Lunch or dinner","mustTry":"Malnati Chicago Classic deep dish with sausage","tip":"Expect a 20-minute wait for deep dish — order thin crust if you're in a hurry"}]`
   } else {
     prompt = `You are a travel expert. Suggest exactly 15 ${categoryLabel} experiences specifically in ${location}.
 
@@ -55,19 +58,20 @@ Return exactly 15 items. Respond ONLY with a valid JSON array. No markdown, no c
 Each object must have exactly these fields:
 - name: string (specific activity or venue name)
 - category: string (short label, e.g. "tour", "restaurant", "activity")
-- description: string (exactly 1 sentence describing the experience in ${cityName})
+- emoji: string (one relevant emoji)
+- description: string (1-2 sentences describing the experience)
 - suggestedTime: string (recommended start time, e.g. "09:00", "14:00", "19:30")
 - duration: string (how long it takes, e.g. "1 hour", "2–3 hours", "Half day")
-- emoji: string (one relevant emoji)
+- tip: string (one practical tip, e.g. "Book ahead", "Wear comfortable shoes", "Best on weekdays to avoid crowds")
 
 Example for Chicago Tours:
-[{"name":"Chicago River Architecture Boat Tour","category":"tour","description":"Cruise the Chicago River on a 90-minute tour to see 50+ landmark skyscrapers and learn why Chicago is the birthplace of modern architecture.","emoji":"🚢","suggestedTime":"10:00","duration":"1.5 hours"}]`
+[{"name":"Chicago River Architecture Boat Tour","category":"tour","emoji":"🚢","description":"Cruise the Chicago River on a 90-minute tour to see 50+ landmark skyscrapers and learn why Chicago is the birthplace of modern architecture.","suggestedTime":"10:00","duration":"1.5 hours","tip":"Book tickets online in advance — summer tours sell out days ahead"}]`
   }
 
   try {
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 3000,
+      max_tokens: 4000,
       messages: [{ role: 'user', content: prompt }],
     })
 
