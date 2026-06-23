@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-06-23 (Fix Trip Readiness budget score: measure planning completeness)
+
+### Fixed — `components/dashboard/trip-readiness-widget.tsx`
+
+Budget score previously used an existence flag (has trip budget set + has any budget items → 100%). Replaced with a proportional formula:
+
+```
+budgetScore = tripBudget > 0 ? min(round(budgetPlanned / tripBudget * 100), 100) : 0
+```
+
+- No trip budget set → 0%
+- Trip budget set, no items → 0%
+- $1,500 planned of $3,000 budget → 50%
+- $3,000+ planned of $3,000 budget → 100%
+
+`budgetPlanned` = sum of `planned_amount` across all budget items (already computed at call sites). `tripBudget` = `trip.budget` prop (already correctly passed). No call-site changes needed.
+
+---
+
 ## 2026-06-23 (Fix Trip Readiness itinerary decimal display)
 
 ### Fixed — `components/dashboard/trip-readiness-widget.tsx`

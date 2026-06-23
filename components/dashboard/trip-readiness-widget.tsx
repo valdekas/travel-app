@@ -30,10 +30,8 @@ export function TripReadinessWidget({
       ? Math.min((itineraryDays / tripDuration) * 100, 100)
       : (itineraryDays > 0 ? 100 : 0)
 
-    const hasTripBudget  = tripBudget > 0
-    const hasBudgetItems = budgetPlanned > 0
-    const budgetScore = hasTripBudget && hasBudgetItems ? 100
-      : (hasTripBudget || hasBudgetItems) ? 50
+    const budgetScore = tripBudget > 0
+      ? Math.min(Math.round((budgetPlanned / tripBudget) * 100), 100)
       : 0
 
     const placesTarget = Math.max(Math.floor(tripDuration / 2), 3)
