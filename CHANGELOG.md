@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-06-23 (Fix Trip Readiness itinerary decimal display)
+
+### Fixed — `components/dashboard/trip-readiness-widget.tsx`
+
+`itineraryScore` was not wrapped in `Math.round()` in the `components` array (line 53), causing the per-metric label to display decimals (e.g. "16.666666666666668%"). The other three metrics were already rounded. One-line fix: `pct: Math.round(itineraryScore)`.
+
+---
+
 ## 2026-06-23 (Fix Trip Readiness scoring logic)
 
 ### Fixed — `components/dashboard/trip-readiness-widget.tsx`, `components/trips/trip-overview-content.tsx`, `components/dashboard/dashboard-content.tsx`

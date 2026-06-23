@@ -50,7 +50,7 @@ export function TripReadinessWidget({
       score,
       components: [
         { label: 'Checklist', pct: Math.round(checklistScore) },
-        { label: 'Itinerary', pct: itineraryScore },
+        { label: 'Itinerary', pct: Math.round(itineraryScore) },
         { label: 'Budget', pct: budgetScore },
         { label: 'Places', pct: Math.round(placesScore) },
       ],
