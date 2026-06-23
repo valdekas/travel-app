@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Trip, ChecklistItem, Location, BudgetItem } from '@/lib/types'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, tripDuration as calcTripDuration } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,7 @@ export function TripOverviewContent({ trip, checklist, locations, budgetItems, i
   const isOverBudget  = budgetPct > 100
 
   const visitedLocations = locations.filter(l => l.visited).length
+  const duration = calcTripDuration(trip.start_date, trip.end_date) ?? 0
   const placesPct        = locations.length > 0 ? Math.round((visitedLocations / locations.length) * 100) : 0
 
   const hasNotes = trip.notes && trip.notes.trim().length > 0
@@ -152,6 +153,8 @@ export function TripOverviewContent({ trip, checklist, locations, budgetItems, i
           itineraryDays={itineraryDaysCount}
           budgetPlanned={totalBudgeted}
           placesCount={locations.length}
+          tripDuration={duration}
+          tripBudget={trip.budget}
         />
 
         {checklistTotal > 0 && (

@@ -44,6 +44,7 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [ ] Add weather widget (placeholder — no API yet)
 * [x] Add Trip Readiness widget to Overview tab
 * [x] Improve Overview cards — Budget-style left-border accents, icon pills, trip notes card
+* [x] Fix Trip Readiness scoring — itinerary/budget/places were binary flags; now proportional
 * [ ] Better spacing and alignment
 
 ## Places

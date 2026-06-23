@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-06-23 (Fix Trip Readiness scoring logic)
+
+### Fixed — `components/dashboard/trip-readiness-widget.tsx`, `components/trips/trip-overview-content.tsx`, `components/dashboard/dashboard-content.tsx`
+
+Three of the four readiness metrics were binary flags that jumped to 100% on trivial conditions:
+
+**Itinerary (was binary, now proportional):** `itineraryDays > 0 ? 100 : 0` → `Math.min((itineraryDays / tripDuration) * 100, 100)`. A 12-day trip with 2 days planned now shows ~17% instead of 100%. Falls back to binary when no trip dates are set.
+
+**Budget (was binary, now staged):** `budgetPlanned > 0 ? 100 : 0` → 100% only when both a trip-level budget *and* budget items exist; 50% when one but not both; 0% when neither. Encourages users to set both a trip budget and itemise spending.
+
+**Places (was fixed threshold, now duration-relative):** `min(count/5, 1)` → target is `max(floor(tripDuration/2), 3)`. A 2-day trip needs 3 places for 100%; a 12-day trip needs 6. Scales meaningfully with trip length.
+
+**Checklist unchanged** — `completed/total` was already correct.
+
+New props added to `TripReadinessWidget`: `tripDuration: number` and `tripBudget: number`. Both call sites updated (Dashboard and Overview tab). `calcTripDuration` imported from `lib/utils` at each call site to compute duration from `trip.start_date` / `trip.end_date`.
+
+---
+
 ## 2026-06-23 (Polish Trip Detail Overview tab)
 
 ### Changed — `components/trips/trip-overview-content.tsx`

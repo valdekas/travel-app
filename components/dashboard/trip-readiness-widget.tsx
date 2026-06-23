@@ -10,6 +10,8 @@ interface TripReadinessWidgetProps {
   itineraryDays: number
   budgetPlanned: number
   placesCount: number
+  tripDuration: number
+  tripBudget: number
 }
 
 export function TripReadinessWidget({
@@ -18,12 +20,24 @@ export function TripReadinessWidget({
   itineraryDays,
   budgetPlanned,
   placesCount,
+  tripDuration,
+  tripBudget,
 }: TripReadinessWidgetProps) {
   const { score, components } = useMemo(() => {
     const checklistScore = checklistTotal > 0 ? (checklistCompleted / checklistTotal) * 100 : 0
-    const itineraryScore = itineraryDays > 0 ? 100 : 0
-    const budgetScore = budgetPlanned > 0 ? 100 : 0
-    const placesScore = placesCount > 0 ? Math.min((placesCount / 5) * 100, 100) : 0
+
+    const itineraryScore = tripDuration > 0
+      ? Math.min((itineraryDays / tripDuration) * 100, 100)
+      : (itineraryDays > 0 ? 100 : 0)
+
+    const hasTripBudget  = tripBudget > 0
+    const hasBudgetItems = budgetPlanned > 0
+    const budgetScore = hasTripBudget && hasBudgetItems ? 100
+      : (hasTripBudget || hasBudgetItems) ? 50
+      : 0
+
+    const placesTarget = Math.max(Math.floor(tripDuration / 2), 3)
+    const placesScore  = placesCount > 0 ? Math.min((placesCount / placesTarget) * 100, 100) : 0
 
     const score = Math.round(
       checklistScore * 0.3 +
@@ -41,7 +55,7 @@ export function TripReadinessWidget({
         { label: 'Places', pct: Math.round(placesScore) },
       ],
     }
-  }, [checklistTotal, checklistCompleted, itineraryDays, budgetPlanned, placesCount])
+  }, [checklistTotal, checklistCompleted, itineraryDays, budgetPlanned, placesCount, tripDuration, tripBudget])
 
   const scoreColor =
     score >= 80 ? 'text-emerald-600 dark:text-emerald-400' :

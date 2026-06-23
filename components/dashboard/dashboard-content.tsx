@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { format } from 'date-fns'
 import { Trip } from '@/lib/types'
-import { getDestinationImage, daysUntil, formatDate, getEffectiveStatus } from '@/lib/utils'
+import { getDestinationImage, daysUntil, formatDate, getEffectiveStatus, tripDuration as calcTripDuration } from '@/lib/utils'
 import { FlagImg } from '@/components/ui/flag-img'
 import { Button } from '@/components/ui/button'
 import {
@@ -68,8 +68,11 @@ export function DashboardContent({
 
   const continentsVisited = visitedContinents.length
 
-  const nextTripPlaces = nextTrip
+  const nextTripPlaces   = nextTrip
     ? allLocations.filter(l => l.trip_id === nextTrip.id).length
+    : 0
+  const nextTripDuration = nextTrip
+    ? (calcTripDuration(nextTrip.start_date, nextTrip.end_date) ?? 0)
     : 0
 
   const greeting = () => {
@@ -387,6 +390,8 @@ export function DashboardContent({
                 itineraryDays={nextTripItineraryDays}
                 budgetPlanned={nextTripBudget.planned}
                 placesCount={nextTripPlaces}
+                tripDuration={nextTripDuration}
+                tripBudget={nextTrip!.budget}
               />
             )}
 
