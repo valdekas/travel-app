@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-06-23 (Fix Dashboard "Countries Visited" count inconsistency)
+
+### Fixed — `components/dashboard/dashboard-content.tsx`
+
+**Bug:** Dashboard stats showed 4 countries visited while World Map showed 5. Three separate issues in the old formula:
+
+1. **Ternary instead of union:** `visitedCountryCodes.length > 0 ? visitedCountryCodes.length : tripCompleted.size` — when manually-added countries existed, trip-completed countries were silently ignored. Should be a union.
+2. **Missing trip-completed countries:** when manually-visited > 0, countries from completed trips were excluded entirely.
+3. **Missing partial-only countries:** countries with regions visited (from `partiallyVisitedRegions`) but not fully marked were not counted at all.
+
+**Fix:** Replaced with:
+```
+tripCompletedCodes = ISO2 codes from all completed trips (t.country_code)
+fullyVisitedSet    = union(visitedCountryCodes, tripCompletedCodes)
+partialOnlyCount   = partiallyVisitedRegions keys NOT already in fullyVisitedSet
+countriesVisited   = fullyVisitedSet.size + partialOnlyCount
+```
+
+This matches the World Map's counting logic and now correctly shows 5 for fully visited + partially visited combined. All downstream consumers (`StatsGrid`, `TravelStatsCard`, `AchievementsWidget`) receive the corrected value via prop — no changes needed to child components.
+
+The Visited Countries page intentionally shows "N fully · M partial" separately — left unchanged.
+
+---
+
 ## 2026-06-23 (Replace all native confirm() dialogs with styled ConfirmDialog)
 
 ### Added — `components/ui/confirm-dialog.tsx`

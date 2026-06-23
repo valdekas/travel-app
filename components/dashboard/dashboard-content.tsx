@@ -62,9 +62,16 @@ export function DashboardContent({
   const nextTrip = upcomingTrips[0] ?? activeTrips[0] ?? null
   const completedTrips = trips.filter(t => getEffectiveStatus(t) === 'completed').length
 
-  const countriesVisited = visitedCountryCodes.length > 0
-    ? visitedCountryCodes.length
-    : new Set(trips.filter(t => getEffectiveStatus(t) === 'completed').map(t => t.country)).size
+  // Union manually-visited + trip-completed (by ISO2 code), then add partial-only countries
+  const tripCompletedCodes = new Set(
+    trips
+      .filter(t => getEffectiveStatus(t) === 'completed')
+      .map(t => t.country_code)
+      .filter((c): c is string => Boolean(c)),
+  )
+  const fullyVisitedSet    = new Set([...visitedCountryCodes, ...tripCompletedCodes])
+  const partialOnlyCount   = Object.keys(partiallyVisitedRegions).filter(c => !fullyVisitedSet.has(c)).length
+  const countriesVisited   = fullyVisitedSet.size + partialOnlyCount
 
   const continentsVisited = visitedContinents.length
 
