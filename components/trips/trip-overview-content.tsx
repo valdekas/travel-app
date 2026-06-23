@@ -156,7 +156,7 @@ export function TripOverviewContent({ trip, checklist, locations, budgetItems, i
         <TripReadinessWidget
           checklistTotal={checklistTotal}
           checklistCompleted={checklistDone}
-          itineraryDays={itineraryDaysCount}
+          itineraryDaysWithActivities={itineraryDaysWithActivities}
           budgetPlanned={totalBudgeted}
           placesCount={locations.length}
           tripDuration={duration}

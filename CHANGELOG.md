@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-06-23 (Fix Trip Readiness itinerary score to use days with activities)
+
+### Fixed — `components/dashboard/trip-readiness-widget.tsx`, `components/dashboard/dashboard-content.tsx`, `app/(dashboard)/dashboard/page.tsx`, `components/trips/trip-overview-content.tsx`
+
+Itinerary score was measuring total days created (including auto-created empty days), making it always 100% for any trip with dates. Now measures days that have at least one activity — consistent with the Overview stat card "X/Y days planned" format.
+
+Changes:
+- **TripReadinessWidget**: renamed prop `itineraryDays` → `itineraryDaysWithActivities`; score formula now divides by `tripDuration` as before but numerator is days-with-activities not total days
+- **Dashboard page**: upgraded `itinerary_days` query from `select('id')` to `select('id, itinerary_items(id)')`, computes `daysWithActivities` via `.filter(d => d.itinerary_items.length > 0).length`
+- **DashboardContent**: prop renamed `nextTripItineraryDays` → `nextTripItineraryDaysWithActivities`; both widget call sites updated
+- **TripOverviewContent**: now passes `itineraryDaysWithActivities` (already available) instead of `itineraryDaysCount` (total) to the widget
+
+Result: new trip with 7 auto-created empty days → Itinerary readiness = 0%; trip with 3/7 days with activities → ~43%.
+
+---
+
 ## 2026-06-23 (Auto-create itinerary days on trip creation)
 
 ### Added — `components/trips/create-trip-form.tsx`

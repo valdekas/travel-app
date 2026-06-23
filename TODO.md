@@ -48,6 +48,7 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [x] Itinerary stat card: show X/Y days planned (days with activities / total days)
 * [x] Fix Trip Readiness scoring — itinerary/budget/places were binary flags; now proportional
 * [x] Fix Trip Readiness budget score — now measures budgetPlanned/tripBudget ratio, not existence
+* [x] Fix Trip Readiness itinerary score — now uses daysWithActivities/tripDuration, not total days created
 * [x] Replace all native confirm() dialogs — new ConfirmDialog component used across Itinerary, Checklist, Places, Budget
 * [x] Fix Dashboard "Countries Visited" count — mirrors World Map formula exactly: union(visitedCountryCodes, resolveA2(tripCompleted)) — no partial inflation
 * [ ] Better spacing and alignment

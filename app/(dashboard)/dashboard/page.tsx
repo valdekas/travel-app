@@ -50,7 +50,7 @@ export default async function DashboardPage() {
   /* ── Phase 2: next-trip-specific data ── */
   let nextTripChecklist = { total: 0, completed: 0 }
   let nextTripBudget = { planned: 0, actual: 0 }
-  let nextTripItineraryDays = 0
+  let nextTripItineraryDaysWithActivities = 0
 
   if (nextTrip) {
     const [
@@ -60,7 +60,7 @@ export default async function DashboardPage() {
     ] = await Promise.all([
       supabase.from('checklist_items').select('id, completed').eq('trip_id', nextTrip.id),
       supabase.from('budget_items').select('planned_amount, actual_amount').eq('trip_id', nextTrip.id),
-      supabase.from('itinerary_days').select('id').eq('trip_id', nextTrip.id),
+      supabase.from('itinerary_days').select('id, itinerary_items(id)').eq('trip_id', nextTrip.id),
     ])
 
     nextTripChecklist = {
@@ -71,7 +71,9 @@ export default async function DashboardPage() {
       planned: bdgItems?.reduce((s, i) => s + (i.planned_amount ?? 0), 0) ?? 0,
       actual: bdgItems?.reduce((s, i) => s + (i.actual_amount ?? 0), 0) ?? 0,
     }
-    nextTripItineraryDays = itinDays?.length ?? 0
+    type DayWithItems = { id: string; itinerary_items: { id: string }[] }
+    nextTripItineraryDaysWithActivities =
+      (itinDays as DayWithItems[] | null ?? []).filter(d => d.itinerary_items.length > 0).length
   }
 
   /* ── Build trip name map ── */
@@ -144,7 +146,7 @@ export default async function DashboardPage() {
       userName={user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'Traveler'}
       nextTripChecklist={nextTripChecklist}
       nextTripBudget={nextTripBudget}
-      nextTripItineraryDays={nextTripItineraryDays}
+      nextTripItineraryDaysWithActivities={nextTripItineraryDaysWithActivities}
       recentActivity={recentActivity}
     />
   )

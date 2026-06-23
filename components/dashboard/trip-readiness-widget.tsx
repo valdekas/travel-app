@@ -7,7 +7,7 @@ import { Target } from 'lucide-react'
 interface TripReadinessWidgetProps {
   checklistTotal: number
   checklistCompleted: number
-  itineraryDays: number
+  itineraryDaysWithActivities: number
   budgetPlanned: number
   placesCount: number
   tripDuration: number
@@ -17,7 +17,7 @@ interface TripReadinessWidgetProps {
 export function TripReadinessWidget({
   checklistTotal,
   checklistCompleted,
-  itineraryDays,
+  itineraryDaysWithActivities,
   budgetPlanned,
   placesCount,
   tripDuration,
@@ -27,8 +27,8 @@ export function TripReadinessWidget({
     const checklistScore = checklistTotal > 0 ? (checklistCompleted / checklistTotal) * 100 : 0
 
     const itineraryScore = tripDuration > 0
-      ? Math.min((itineraryDays / tripDuration) * 100, 100)
-      : (itineraryDays > 0 ? 100 : 0)
+      ? Math.min((itineraryDaysWithActivities / tripDuration) * 100, 100)
+      : (itineraryDaysWithActivities > 0 ? 100 : 0)
 
     const budgetScore = tripBudget > 0
       ? Math.min(Math.round((budgetPlanned / tripBudget) * 100), 100)
@@ -53,7 +53,7 @@ export function TripReadinessWidget({
         { label: 'Places', pct: Math.round(placesScore) },
       ],
     }
-  }, [checklistTotal, checklistCompleted, itineraryDays, budgetPlanned, placesCount, tripDuration, tripBudget])
+  }, [checklistTotal, checklistCompleted, itineraryDaysWithActivities, budgetPlanned, placesCount, tripDuration, tripBudget])
 
   const scoreColor =
     score >= 80 ? 'text-emerald-600 dark:text-emerald-400' :

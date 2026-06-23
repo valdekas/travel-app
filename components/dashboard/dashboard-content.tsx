@@ -39,7 +39,7 @@ interface DashboardContentProps {
   userName: string
   nextTripChecklist: { total: number; completed: number }
   nextTripBudget: { planned: number; actual: number }
-  nextTripItineraryDays: number
+  nextTripItineraryDaysWithActivities: number
   recentActivity: RecentActivityItem[]
 }
 
@@ -47,7 +47,7 @@ interface DashboardContentProps {
 export function DashboardContent({
   trips, wishlistCount, allLocations, visitedCountryCodes, visitedContinents,
   partiallyVisitedRegions = {}, visitedRegionsTotal = 0, userName,
-  nextTripChecklist, nextTripBudget, nextTripItineraryDays, recentActivity,
+  nextTripChecklist, nextTripBudget, nextTripItineraryDaysWithActivities, recentActivity,
 }: DashboardContentProps) {
   const now = new Date()
 
@@ -241,7 +241,7 @@ export function DashboardContent({
                 checklistCompleted={nextTripChecklist.completed}
                 budgetPlanned={nextTripBudget.planned}
                 budgetActual={nextTripBudget.actual}
-                itineraryDays={nextTripItineraryDays}
+                itineraryDays={nextTripItineraryDaysWithActivities}
                 animationDelay={0.3}
               />
             )}
@@ -393,7 +393,7 @@ export function DashboardContent({
               <TripReadinessWidget
                 checklistTotal={nextTripChecklist.total}
                 checklistCompleted={nextTripChecklist.completed}
-                itineraryDays={nextTripItineraryDays}
+                itineraryDaysWithActivities={nextTripItineraryDaysWithActivities}
                 budgetPlanned={nextTripBudget.planned}
                 placesCount={nextTripPlaces}
                 tripDuration={nextTripDuration}
