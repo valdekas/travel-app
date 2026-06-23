@@ -42,8 +42,8 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 
 * [ ] Polish Hero section
 * [ ] Add weather widget (placeholder — no API yet)
-* [ ] Add Trip Readiness widget to Overview tab
-* [ ] Improve Overview cards
+* [x] Add Trip Readiness widget to Overview tab
+* [x] Improve Overview cards — Budget-style left-border accents, icon pills, trip notes card
 * [ ] Better spacing and alignment
 
 ## Places

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-06-23 (Polish Trip Detail Overview tab)
+
+### Changed — `components/trips/trip-overview-content.tsx`
+
+Brought the Overview tab to parity with the visual quality of the Budget and Journal tabs:
+
+**Stat cards:** all 4 cards (Checklist / Budget / Places / Itinerary) now use the Budget-tab pattern — `relative overflow-hidden` card, 3px colored left-border accent, icon in a soft tinted pill (`bg-[color]-100 dark:bg-[color]-500/15`). Budget card accent and icon turn red when over-budget. Places card now shows visited/total instead of the less useful "planned locations" label.
+
+**Trip Readiness widget:** `TripReadinessWidget` (previously only on the Dashboard) is now embedded in the Overview tab. Reuses the existing component with the same scoring logic (checklist 30%, itinerary 25%, budget 25%, places 20%). Displayed alongside the Checklist Preview in a 2-column grid on large screens; full-width when there's no checklist data.
+
+**Trip Notes card:** `trip.notes` is now surfaced as a dedicated card with a FileText icon and slate left-border accent. Only rendered when notes are non-empty. Previously the notes were truncated into the header subtitle and invisible to most users.
+
+**Layout:** removed `trip.notes` from the section header subtitle (replaced by its own card). No data-fetching changes — presentation layer only.
+
+---
+
 ## 2026-06-23 (Premium Dashboard onboarding empty state)
 
 ### Changed — `components/dashboard/dashboard-content.tsx`, new `components/dashboard/empty-world-map.tsx`
