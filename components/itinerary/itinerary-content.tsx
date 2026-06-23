@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { PlacesAutocomplete } from '@/components/ui/places-autocomplete'
 import { DragHint } from '@/components/shared/drag-hint'
+import { ItinerarySuggestionsPanel } from '@/components/itinerary/itinerary-suggestions-panel'
 import { toast } from 'sonner'
 import {
   Plus, Calendar, Trash2, Loader2, MapPin,
@@ -833,6 +834,12 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
 
   const dialogOpen = addItemDialog !== null || editItem !== null
 
+  function handleSuggestionsAdded(dayId: string, newItems: ItineraryItem[]) {
+    setDays(prev => prev.map(d =>
+      d.id === dayId ? { ...d, items: [...(d.items ?? []), ...newItems] } : d
+    ))
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
@@ -851,9 +858,19 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
             </p>
           </div>
         </div>
-        <Button onClick={addDay} size="sm" className="gap-1.5 shrink-0">
-          <Plus className="h-4 w-4" /> Add Day
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {days.length > 0 && (
+            <ItinerarySuggestionsPanel
+              trip={trip}
+              days={days}
+              existingNames={days.flatMap(d => d.items ?? []).map(i => i.title)}
+              onAdded={handleSuggestionsAdded}
+            />
+          )}
+          <Button onClick={addDay} size="sm" className="gap-1.5 shrink-0">
+            <Plus className="h-4 w-4" /> Add Day
+          </Button>
+        </div>
       </div>
 
       {days.length === 0 ? (

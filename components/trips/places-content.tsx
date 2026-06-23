@@ -35,6 +35,7 @@ import {
 } from 'lucide-react'
 import { PlacesAutocomplete, type PlaceDetails } from '@/components/ui/places-autocomplete'
 import { DragHint } from '@/components/shared/drag-hint'
+import { PlacesSuggestionsPanel } from '@/components/trips/places-suggestions-panel'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -654,13 +655,21 @@ export function PlacesContent({ trip, initialLocations }: PlacesContentProps) {
           </div>
         </div>
 
-        {/* Add dialog */}
-        <Dialog open={addOpen} onOpenChange={open => { if (!open) closeAdd(); else setAddOpen(true) }}>
-          <DialogTrigger render={
-            <Button size="sm" className="gap-1.5 shrink-0">
-              <Plus className="h-4 w-4" /> Add Place
-            </Button>
-          } />
+        {/* Action buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          <PlacesSuggestionsPanel
+            trip={trip}
+            existingNames={locations.map(l => l.name)}
+            onAdded={refresh}
+          />
+
+          {/* Add dialog */}
+          <Dialog open={addOpen} onOpenChange={open => { if (!open) closeAdd(); else setAddOpen(true) }}>
+            <DialogTrigger render={
+              <Button size="sm" className="gap-1.5 shrink-0">
+                <Plus className="h-4 w-4" /> Add Place
+              </Button>
+            } />
           <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add Place</DialogTitle>
@@ -687,7 +696,8 @@ export function PlacesContent({ trip, initialLocations }: PlacesContentProps) {
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {/* Empty state */}

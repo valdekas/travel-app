@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-06-23 (AI Suggestions for Places and Itinerary tabs)
+
+### Added — `app/api/recommendations/route.ts`, `components/trips/places-suggestions-panel.tsx`, `components/itinerary/itinerary-suggestions-panel.tsx`; wired into `components/trips/places-content.tsx` + `components/itinerary/itinerary-content.tsx`
+
+New "✨ AI Suggestions" feature powered by Anthropic Claude API (claude-sonnet-4-6):
+
+**API route** (`/api/recommendations` POST):
+- Accepts `{ type: 'places' | 'itinerary', destination, country, duration, existingItems }`
+- Calls Claude server-side (API key never exposed to client)
+- Strips accidental markdown fences from response before JSON.parse
+- Returns `{ suggestions: [...] }` — 8–10 items per call
+- Returns friendly error JSON on failure; logs detail to server console
+
+**Places tab** (`PlacesSuggestionsPanel`):
+- Violet-accented "AI Suggestions" button next to "+ Add Place"
+- Dialog with skeleton loading cards (6 placeholders while fetching)
+- Suggestion cards: emoji pill + name + category badge + 1-sentence description
+- Click to toggle selection (violet border + background highlight); selected count shown
+- "Add N Places" bulk-inserts into `locations` table; calls `refresh()` on success
+- Error state with "Try again" button
+
+**Itinerary tab** (`ItinerarySuggestionsPanel`):
+- Same panel pattern; button only visible when ≥1 day exists
+- Suggestion cards additionally show suggested time (Clock icon) and duration (Timer icon)
+- Day selector: auto-selects the only day if 1 exists; shows Select dropdown when multiple days
+- "Add N Activities" bulk-inserts into `itinerary_items`; updates local `days` state via `onAdded` callback without page reload
+- Deduplication: existing activity names passed to Claude prompt via `existingItems`
+
+**SDK**: `@anthropic-ai/sdk` installed (`--legacy-peer-deps`).
+
+⚠️ **Requires `ANTHROPIC_API_KEY` in `.env.local`** — not currently set; clicking Suggestions will show a friendly error until the key is added.
+
+---
+
 ## 2026-06-23 (Fix Trip Readiness itinerary score to use days with activities)
 
 ### Fixed — `components/dashboard/trip-readiness-widget.tsx`, `components/dashboard/dashboard-content.tsx`, `app/(dashboard)/dashboard/page.tsx`, `components/trips/trip-overview-content.tsx`
