@@ -41,6 +41,12 @@ function tripDurationDays(trip: Trip): number {
   ) + 1)
 }
 
+function extractCity(trip: Trip): string {
+  if (trip.city && trip.city !== trip.country) return trip.city
+  if (trip.region && trip.region !== trip.country) return trip.region
+  return trip.country || 'the destination'
+}
+
 function dayLabel(day: ItineraryDay, index: number): string {
   const num = day.day_number ?? index + 1
   try {
@@ -179,7 +185,7 @@ export function ItinerarySuggestionsPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'itinerary',
-          destination: trip.city || trip.country,
+          destination: extractCity(trip),
           country: trip.country,
           duration: tripDurationDays(trip),
           existingItems: existingNames,
@@ -266,7 +272,7 @@ export function ItinerarySuggestionsPanel({
               <Sparkles className="h-4 w-4 text-violet-500" />
               Suggestions
               <span className="text-sm font-normal text-muted-foreground">
-                — {trip.city || trip.country}
+                — {extractCity(trip)}
               </span>
             </DialogTitle>
             <p className="text-xs text-muted-foreground mt-0.5">

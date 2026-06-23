@@ -38,6 +38,14 @@ function duration(trip: Trip): number {
   ) + 1)
 }
 
+function extractCity(trip: Trip): string {
+  // trip.city comes from Google Places locality — most specific
+  if (trip.city && trip.city !== trip.country) return trip.city
+  // trip.region (e.g. "Costa Blanca", "Illinois") is more specific than country
+  if (trip.region && trip.region !== trip.country) return trip.region
+  return trip.country || 'the destination'
+}
+
 // ── Skeleton ───────────────────────────────────────────────────────────────────
 
 function SkeletonCard() {
@@ -140,7 +148,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'places',
-          destination: trip.city || trip.country,
+          destination: extractCity(trip),
           country: trip.country,
           duration: duration(trip),
           existingItems: existingNames,
@@ -214,7 +222,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
               <Sparkles className="h-4 w-4 text-violet-500" />
               Suggestions
               <span className="text-sm font-normal text-muted-foreground">
-                — {trip.city || trip.country}
+                — {extractCity(trip)}
               </span>
             </DialogTitle>
             <p className="text-xs text-muted-foreground mt-0.5">

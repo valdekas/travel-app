@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-06-23 (Suggestions: stronger city extraction and city-forcing prompt)
+
+### Fixed — `components/trips/places-suggestions-panel.tsx`, `components/itinerary/itinerary-suggestions-panel.tsx`, `app/api/recommendations/route.ts`
+
+**Client-side (`extractCity` helper, both panels):**
+Replaced `trip.city || trip.country` with a proper `extractCity(trip)` function:
+1. Uses `trip.city` if set and not equal to the country name (Google Places `locality`)
+2. Falls back to `trip.region` if set and not equal to the country (e.g. "Costa Blanca", "Alicante")
+3. Falls back to `trip.country` as last resort
+
+Dialog subtitle also updated to use `extractCity(trip)` so it shows the resolved city name.
+
+**Server-side prompt rewrite (`route.ts`):**
+Added `cityName` variable (first comma-segment of `destination`, e.g. `"Costa Blanca"` from `"Costa Blanca, Alicante"`). Both prompts now:
+- Open with `IMPORTANT: Only suggest [places/activities] physically located in ${cityName} itself`
+- Include concrete counter-examples ("if Chicago: Millennium Park, Lou Malnati's… NOT generic US attractions")
+- End every descriptive field instruction with "in ${cityName}" to reinforce locality
+
+---
+
 ## 2026-06-23 (Fix Suggestions button label and city-specific prompts)
 
 ### Fixed — `components/trips/places-suggestions-panel.tsx`, `components/itinerary/itinerary-suggestions-panel.tsx`, `app/api/recommendations/route.ts`

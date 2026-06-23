@@ -58,7 +58,7 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [x] Drag & Drop ordering — handle-only, per-group (To Visit / Visited), persisted to DB
 * [x] Edit Place — pencil button per row, pre-filled modal, Google Places autocomplete, preserves coords when only editing notes/cost
 * [x] Mobile overflow menu (⋮) — Edit, Open in Maps, Delete
-* [x] AI Suggestions — ✨ button opens panel; Claude suggests 8–10 places; checkbox selection; bulk insert into locations table
+* [x] AI Suggestions — ✨ button opens panel; Claude suggests 8–10 city-specific places; checkbox selection; bulk insert into locations table; extractCity() uses city→region→country priority
 * [ ] Better Place cards
 * [ ] Improve mobile layout
 
