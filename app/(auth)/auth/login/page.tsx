@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Globe, Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,8 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 
 export default function LoginPage() {
-  const router = useRouter()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
@@ -20,6 +21,12 @@ export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false)
 
   const supabase = createClient()
+
+  // Show OAuth error toasts (e.g. bad_oauth_state) redirected back from callback
+  useEffect(() => {
+    const err = searchParams.get('oauth_error')
+    if (err) toast.error(`Sign-in failed: ${err}`)
+  }, [searchParams])
 
   async function handleGoogleLogin() {
     const { error } = await supabase.auth.signInWithOAuth({
