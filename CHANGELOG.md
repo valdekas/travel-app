@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-06-24 (Suggestions cache: localStorage, 24h TTL, 50-entry cap)
+
+### Changed — `lib/utils/suggestions-cache.ts`
+
+- Switched from `sessionStorage` to `localStorage` — cache now survives tab closes and browser restarts
+- TTL extended from 30 minutes to 24 hours
+- `setCachedSuggestions` now calls `evictOldest()` after every write: scans all `suggestions_*` keys, sorts by timestamp ascending, removes the oldest until count ≤ 50
+
 ## 2026-06-24 (Suggestions: optional area/neighbourhood refinement step)
 
 ### Added — `components/trips/places-suggestions-panel.tsx`, `components/itinerary/itinerary-suggestions-panel.tsx`, `app/api/recommendations/route.ts`, `components/ui/places-autocomplete.tsx`
