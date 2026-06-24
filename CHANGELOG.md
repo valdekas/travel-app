@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-06-24 (Replace Google Places hero images with Pexels API)
+
+### Added — `lib/utils/pexels-hero.ts`, `app/api/trips/pexels-hero/route.ts`
+### Changed — `components/trips/create-trip-form.tsx`, `components/trips/trip-detail-shell.tsx`, `components/dashboard/trip-card.tsx`, `lib/utils/trip-hero-image.ts`
+
+**Root cause:** Google Places `PhotoService.GetPhoto` URLs are browser-session-scoped and cannot be fetched server-side (403) or via client-side `fetch()` (CORS). The previous client-side download approach also failed silently.
+
+**Fix — Pexels API (server-side only):**
+- New `lib/utils/pexels-hero.ts`: `fetchPexelsHeroImage(city, country)` calls `https://api.pexels.com/v1/search` — landscape orientation, picks the top result's `large2x` URL
+- New `POST /api/trips/pexels-hero`: authenticated route that verifies trip ownership, calls `fetchPexelsHeroImage`, updates `cover_photo` in DB
+- `create-trip-form.tsx`: after trip INSERT, fires `fetch('/api/trips/pexels-hero', ...)` as fire-and-forget (no `await`); if Pexels fails, trip still creates successfully with no cover photo
+- `PEXELS_API_KEY` lives in `.env.local` as a plain (non-NEXT_PUBLIC_) env var — never exposed to the browser
+
+**Gradient placeholder (`trip-detail-shell.tsx`):**
+- `imgError` state tracks failed image loads
+- When `imgError` is true, renders a CSS gradient div (`from-slate-700 via-slate-800 to-slate-900`) with radial indigo/violet accents instead of the broken `<Image>`
+- `onError`: if the broken URL was a Google URL, silently NULLs `cover_photo` in DB so it won't fail again on next load
+- "Add cover photo" button centered on the gradient opens the photo dialog
+
+**Cleanup:**
+- `downloadAndUploadHeroImage` removed from `lib/utils/trip-hero-image.ts` (CORS-blocked, dead code)
+- `trip-card.tsx` `onError` simplified — cascades fallbacks without any DB writes (Pexels URLs are permanent)
+- No changes to user-uploaded photo flow (device upload via `uploadCustomHeroImage` still works)
+
+---
+
 ## 2026-06-24 (Fix hero image storage: client-side download replaces broken server route)
 
 ### Changed — `lib/utils/trip-hero-image.ts`, `components/trips/create-trip-form.tsx`, `app/api/trips/hero/route.ts`

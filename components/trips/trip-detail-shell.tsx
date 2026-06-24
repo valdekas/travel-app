@@ -49,6 +49,7 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
 
   const days = daysUntil(trip.start_date)
   const [imgSrc, setImgSrc] = useState(getDestinationImage(trip))
+  const [imgError, setImgError] = useState(false)
 
   const countdownBg =
     days === null || days < 0 ? 'bg-black/45' :
@@ -112,6 +113,7 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
       const { error } = await supabase.from('trips').update({ cover_photo: uploaded }).eq('id', trip.id)
       if (error) throw error
       setImgSrc(uploaded)
+      setImgError(false)
       toast.success('Hero photo updated')
       closePhotoDialog()
       router.refresh()
@@ -123,9 +125,11 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
   }
 
   async function handlePhotoReset() {
-    const auto = getCityOrCountryImage(trip.city ?? trip.country ?? '') || getDestinationImage(trip)
     await supabase.from('trips').update({ cover_photo: null }).eq('id', trip.id)
+    const auto = getCityOrCountryImage(trip.city ?? trip.country ?? '') ||
+      'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1200&q=80'
     setImgSrc(auto)
+    setImgError(false)
     toast.success('Photo reset to destination image')
     closePhotoDialog()
     router.refresh()
@@ -148,25 +152,57 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
               className="hidden"
               onChange={handlePhotoFileSelect}
             />
-            <Image
-              src={imgSrc}
-              alt={trip.name}
-              fill
-              sizes="(max-width: 768px) 100vw, 1024px"
-              className="object-cover object-center"
-              priority
-              onError={() => {
-                const fallback = getCityOrCountryImage(trip.city ?? trip.country ?? '')
-                setImgSrc(fallback)
-                // Silently replace the broken Google URL in the DB with a stable fallback
-                if (trip.cover_photo && isGooglePhotoUrl(trip.cover_photo)) {
-                  void supabase.from('trips').update({ cover_photo: fallback }).eq('id', trip.id)
-                }
-              }}
-            />
+            {/* Photo OR gradient placeholder */}
+            {!imgError ? (
+              <Image
+                src={imgSrc}
+                alt={trip.name}
+                fill
+                sizes="(max-width: 768px) 100vw, 1024px"
+                className="object-cover object-center"
+                priority
+                onError={() => {
+                  // Clear broken Google URL from DB, then show gradient — no re-fetch attempt
+                  if (trip.cover_photo && isGooglePhotoUrl(trip.cover_photo)) {
+                    void supabase.from('trips').update({ cover_photo: null }).eq('id', trip.id)
+                  }
+                  setImgError(true)
+                }}
+              />
+            ) : (
+              /* Gradient placeholder for trips with no/broken cover photo */
+              <div className="absolute inset-0 bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900">
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    backgroundImage: [
+                      'radial-gradient(ellipse at 28% 38%, rgba(99,102,241,0.38) 0%, transparent 52%)',
+                      'radial-gradient(ellipse at 72% 62%, rgba(168,85,247,0.28) 0%, transparent 52%)',
+                    ].join(','),
+                  }}
+                />
+              </div>
+            )}
+
             {/* Gradient overlays */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/10" />
+            <div className={cn(
+              'absolute inset-0 bg-gradient-to-t to-transparent',
+              imgError ? 'from-black/70 via-black/5' : 'from-black/85 via-black/20 to-black/10',
+            )} />
             <div className="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent" />
+
+            {/* "Add cover photo" invite — only visible on gradient placeholder */}
+            {imgError && (
+              <button
+                onClick={() => setPhotoOpen(true)}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[70%] flex flex-col items-center gap-2 text-white/60 hover:text-white/90 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-full border border-white/20 hover:border-white/50 flex items-center justify-center bg-white/10 hover:bg-white/20 transition-all">
+                  <Camera className="h-4 w-4" />
+                </div>
+                <span className="text-xs font-medium tracking-wide">Add cover photo</span>
+              </button>
+            )}
 
             {/* Change photo — always on mobile, hover on desktop */}
             <button

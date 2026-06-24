@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card'
 import { PlacesAutocomplete } from '@/components/ui/places-autocomplete'
 import { toast } from 'sonner'
-import { isGooglePhotoUrl, validateHeroImageFile, uploadCustomHeroImage, downloadAndUploadHeroImage } from '@/lib/utils/trip-hero-image'
+import { validateHeroImageFile, uploadCustomHeroImage } from '@/lib/utils/trip-hero-image'
 import {
   Globe, Calendar, DollarSign, FileText, ImageIcon,
   Loader2, Wand2, Link as LinkIcon, X, MapPin, Upload,
@@ -164,15 +164,14 @@ export function CreateTripForm() {
         }
       }
 
-      // Download the Google photo client-side (where the session URL is still valid)
-      // and upload permanently to Supabase Storage — fire-and-forget, doesn't block redirect.
-      // Server-side fetch returns 403; this must run in the browser.
-      if (!heroFile && cover && isGooglePhotoUrl(cover)) {
-        void downloadAndUploadHeroImage(supabase, cover, user.id, data.id).then(permanentUrl => {
-          if (permanentUrl) {
-            void supabase.from('trips').update({ cover_photo: permanentUrl }).eq('id', data.id)
-          }
-        })
+      // Fetch a Pexels hero image server-side — fire-and-forget, doesn't block redirect.
+      // Only runs when the user hasn't picked a custom file (their file takes priority).
+      if (!heroFile && (form.city || form.country)) {
+        void fetch('/api/trips/pexels-hero', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tripId: data.id, city: form.city || null, country: form.country }),
+        }).catch(() => {})
       }
 
       // Fire suggestion generation in background — doesn't block trip creation.
@@ -240,8 +239,7 @@ export function CreateTripForm() {
                 set('country_code', p.countryCode)
                 destRef.current = { lat: p.lat, lng: p.lng, region: p.region, city }
                 if (!coverManuallySet.current && !heroFile) {
-                  const img = p.photoUrl ||
-                    getCityOrCountryImage(city) ||
+                  const img = getCityOrCountryImage(city) ||
                     getCityOrCountryImage(p.country) ||
                     ''
                   if (img) set('cover_photo', img)

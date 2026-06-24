@@ -42,7 +42,8 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 
 * [x] Auto-create itinerary days on trip creation — bulk insert one day per date (capped at 30) when start_date + end_date are set; silent skip if dates missing
 * [x] Fix expiring Google Places hero images — download and store in Supabase Storage (`trip-heroes` bucket) at trip creation; self-healing onError fallback updates DB for existing trips
-* [x] Fix hero image storage: switched from broken server-side route (Google URLs return 403 from Node.js) to client-side `downloadAndUploadHeroImage` in create-trip-form; `/api/trips/hero` retired with 410
+* [x] Fix hero image storage: switched from broken server-side route (Google URLs return 403 from Node.js) to client-side download; then discovered CORS also blocks client-side fetch of Google URLs
+* [x] Replace Google Places hero images with Pexels API — permanent URLs, no CORS issues; fire-and-forget POST `/api/trips/pexels-hero` after trip creation; gradient placeholder for missing/broken images; `PEXELS_API_KEY` server-side only
 * [ ] Create `trip-heroes` Storage bucket in Supabase Dashboard (migration 013 never applied — manual step required)
 * [x] Custom hero image upload — Upload photo button in Edit Trip dialog + Create Trip form; floating "Change photo" button on trip hero (hover desktop, always mobile); validates type/size, uploads to trip-heroes bucket, graceful failure handling
 * [ ] Polish Hero section
