@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Trip } from '@/lib/types'
 import { daysUntil, formatDate, tripDuration, getDestinationImage, getCityOrCountryImage } from '@/lib/utils'
+import { isGooglePhotoUrl } from '@/lib/utils/trip-hero-image'
 import { FlagImg } from '@/components/ui/flag-img'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -74,8 +75,12 @@ export function TripCard({ trip }: TripCardProps) {
             sizes="(max-width: 640px) 100vw, 50vw"
             className="object-cover transition-transform duration-500 ease-out group-hover/card:scale-[1.08]"
             onError={() => {
-              if (imgSrc !== countrySrc) setImgSrc(countrySrc)
-              else if (imgSrc !== fallbackSrc) setImgSrc(fallbackSrc)
+              const next = imgSrc !== countrySrc ? countrySrc : fallbackSrc
+              setImgSrc(next)
+              // Silently replace the broken Google URL in the DB with a stable fallback
+              if (trip.cover_photo && isGooglePhotoUrl(trip.cover_photo)) {
+                void supabase.from('trips').update({ cover_photo: next }).eq('id', trip.id)
+              }
             }}
           />
 

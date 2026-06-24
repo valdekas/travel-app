@@ -5,7 +5,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { Trip } from '@/lib/types'
-import { daysUntil, formatDate, getDestinationImage, getTripStatusColor, getEffectiveStatus } from '@/lib/utils'
+import { daysUntil, formatDate, getDestinationImage, getCityOrCountryImage, getTripStatusColor, getEffectiveStatus } from '@/lib/utils'
+import { isGooglePhotoUrl } from '@/lib/utils/trip-hero-image'
 import { FlagImg } from '@/components/ui/flag-img'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -41,7 +42,7 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
   const [confirming, setConfirming] = useState(false)
 
   const days = daysUntil(trip.start_date)
-  const imgSrc = getDestinationImage(trip)
+  const [imgSrc, setImgSrc] = useState(getDestinationImage(trip))
 
   const countdownBg =
     days === null || days < 0 ? 'bg-black/45' :
@@ -93,6 +94,14 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
               sizes="(max-width: 768px) 100vw, 1024px"
               className="object-cover object-center"
               priority
+              onError={() => {
+                const fallback = getCityOrCountryImage(trip.city ?? trip.country ?? '')
+                setImgSrc(fallback)
+                // Silently replace the broken Google URL in the DB with a stable fallback
+                if (trip.cover_photo && isGooglePhotoUrl(trip.cover_photo)) {
+                  void supabase.from('trips').update({ cover_photo: fallback }).eq('id', trip.id)
+                }
+              }}
             />
             {/* Gradient overlays */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/10" />

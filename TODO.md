@@ -1,6 +1,6 @@
 # 📋 Travel Planner – TODO
 
-Last Updated: 2026-06-21
+Last Updated: 2026-06-24
 
 ---
 
@@ -41,6 +41,7 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 ## Trip Details
 
 * [x] Auto-create itinerary days on trip creation — bulk insert one day per date (capped at 30) when start_date + end_date are set; silent skip if dates missing
+* [x] Fix expiring Google Places hero images — download and store in Supabase Storage (`trip-heroes` bucket) at trip creation; self-healing onError fallback updates DB for existing trips
 * [ ] Polish Hero section
 * [ ] Add weather widget (placeholder — no API yet)
 * [x] Add Trip Readiness widget to Overview tab

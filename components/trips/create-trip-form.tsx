@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card'
 import { PlacesAutocomplete } from '@/components/ui/places-autocomplete'
 import { toast } from 'sonner'
+import { isGooglePhotoUrl } from '@/lib/utils/trip-hero-image'
 import {
   Globe, Calendar, DollarSign, FileText, ImageIcon,
   Loader2, Wand2, Link as LinkIcon, X, MapPin,
@@ -124,6 +125,16 @@ export function CreateTripForm() {
           const { error: daysError } = await supabase.from('itinerary_days').insert(daysArray)
           if (daysError) console.error('Failed to auto-create itinerary days:', daysError.message)
         }
+      }
+
+      // Fire hero image storage in background — converts the temporary Google
+      // URL to a permanent Supabase Storage URL without blocking the redirect.
+      if (cover && isGooglePhotoUrl(cover)) {
+        void fetch('/api/trips/hero', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ googleImageUrl: cover, tripId: data.id }),
+        })
       }
 
       toast.success('Trip created!')

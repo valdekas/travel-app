@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-06-24 (Fix expiring Google Places hero images via Supabase Storage)
+
+### Added — `supabase/migrations/013_trip_hero_storage.sql`, `lib/utils/trip-hero-image.ts`, `app/api/trips/hero/route.ts`
+### Changed — `components/trips/create-trip-form.tsx`, `components/trips/trip-detail-shell.tsx`, `components/dashboard/trip-card.tsx`
+
+**Root cause:** Google Places photo URLs (`maps.googleapis.com/…`) are signed temporary URLs that expire after a few hours, breaking hero images for all trips after first load.
+
+**Fix for new trips (`create-trip-form.tsx`):**
+- After trip is created in the DB, if `cover_photo` is a Google URL, fires a background POST to `/api/trips/hero` (fire-and-forget — does not block the UX or redirect)
+- API route downloads the Google image server-side, uploads to `trip-heroes` Supabase Storage bucket at `{userId}/{tripId}/hero.{ext}`, then updates the trip's `cover_photo` to the permanent `supabase.co` URL
+- Graceful degradation: if download/upload/update fails, trip retains the Google URL and the self-healing fallback (below) handles it
+
+**New API route (`POST /api/trips/hero`):**
+- Authenticated — uses server Supabase client (cookies), rejects unauthenticated requests
+- Validates that the URL is a Google Photo URL before downloading
+- Guards the DB update with both `id` and `user_id` filters (belt-and-suspenders on top of RLS)
+- Returns `{ permanentUrl }` on success, error JSON with appropriate status on failure
+
+**New utility (`lib/utils/trip-hero-image.ts`):**
+- `downloadAndStoreHeroImage(supabase, googleImageUrl, userId, tripId)` — server-side only
+- `isGooglePhotoUrl(url)` — detects `maps.googleapis.com` and `googleusercontent.com` URLs
+
+**Self-healing for existing trips (`trip-card.tsx`, `trip-detail-shell.tsx`):**
+- Both components now detect when a hero image fails to load (onError)
+- If `trip.cover_photo` is a Google URL, silently update the DB with the stable Unsplash fallback via the existing `getCityOrCountryImage` / `getDestinationImage` logic
+- `trip-detail-shell.tsx` gained image state (`useState`) and `onError` handler (previously had neither)
+- Existing trips self-heal on first view — no batch migration needed
+
+**Storage bucket (`013_trip_hero_storage.sql`):**
+- Public bucket `trip-heroes`, 5 MB limit, JPEG/PNG/WebP
+- Policies: public SELECT, authenticated INSERT/UPDATE/DELETE restricted to own folder (`{userId}/…`)
+
+**Part 4 — approach chosen: onError self-healing (not migration endpoint)**
+Rationale: existing Google URLs are already expired and cannot be re-downloaded. A migration endpoint would fetch 0 bytes from 403-ing URLs. The onError approach self-heals on first view with stable Unsplash URLs from the existing image map, requires no batch processing, and permanently fixes the DB entry so the image loads correctly from then on.
+
 ## 2026-06-24 (Suggestions cache: localStorage, 24h TTL, 50-entry cap)
 
 ### Changed — `lib/utils/suggestions-cache.ts`
