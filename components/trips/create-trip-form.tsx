@@ -173,6 +173,21 @@ export function CreateTripForm() {
         })
       }
 
+      // Fire suggestion generation in background — doesn't block trip creation.
+      const duration = (form.start_date && form.end_date)
+        ? Math.round((new Date(form.end_date).getTime() - new Date(form.start_date).getTime()) / 86_400_000) + 1
+        : null
+      void fetch('/api/suggestions/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tripId: data.id,
+          city:    form.city || null,
+          country: form.country,
+          duration,
+        }),
+      }).catch(() => {})
+
       toast.success('Trip created!')
       router.push(`/trips/${data.id}/overview`)
     } catch (err: unknown) {

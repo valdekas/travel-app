@@ -14,18 +14,19 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import {
   LayoutDashboard, MapPin, CheckSquare, BarChart3, BookOpen,
-  Calendar, ChevronLeft, Trash2, Loader2, ClipboardCheck, Camera, Upload, ImageIcon, RotateCcw,
+  Calendar, ChevronLeft, Trash2, Loader2, ClipboardCheck, Camera, Upload, ImageIcon, RotateCcw, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EditTripDialog } from './edit-trip-dialog'
 
 const TABS = [
-  { label: 'Overview',  href: 'overview',  icon: LayoutDashboard },
-  { label: 'Places',    href: 'places',    icon: MapPin },
-  { label: 'Itinerary', href: 'itinerary', icon: Calendar },
-  { label: 'Checklist', href: 'checklist', icon: CheckSquare },
-  { label: 'Budget',    href: 'budget',    icon: BarChart3 },
-  { label: 'Journal',   href: 'journal',   icon: BookOpen },
+  { label: 'Overview',     href: 'overview',     icon: LayoutDashboard },
+  { label: 'Places',       href: 'places',       icon: MapPin },
+  { label: 'Suggestions',  href: 'suggestions',  icon: Sparkles },
+  { label: 'Itinerary',    href: 'itinerary',    icon: Calendar },
+  { label: 'Checklist',    href: 'checklist',    icon: CheckSquare },
+  { label: 'Budget',       href: 'budget',       icon: BarChart3 },
+  { label: 'Journal',      href: 'journal',      icon: BookOpen },
 ]
 
 interface TripDetailShellProps {

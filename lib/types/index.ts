@@ -317,6 +317,33 @@ export const DEFAULT_USER_SETTINGS: Omit<UserSettings, 'id' | 'user_id' | 'creat
   hide_profile: false,
 }
 
+export interface TripSuggestion {
+  id: string
+  trip_id: string
+  user_id: string
+  category: string
+  name: string
+  description?: string
+  why_visit?: string
+  price_range?: string
+  best_time_to_visit?: string
+  must_try?: string
+  tip?: string
+  emoji?: string
+  added_to_places: boolean
+  added_to_itinerary: boolean
+  created_at: string
+}
+
+export const SUGGESTION_CATEGORIES = [
+  { key: 'Restaurants',    emoji: '🍽️', label: 'Restaurants'   },
+  { key: 'Attractions',    emoji: '🏛️', label: 'Attractions'   },
+  { key: 'Viewpoints',     emoji: '🌅', label: 'Viewpoints'    },
+  { key: 'Museums',        emoji: '🎨', label: 'Museums'       },
+  { key: 'Bars',           emoji: '🍸', label: 'Bars'          },
+  { key: 'Parks & Nature', emoji: '🌿', label: 'Parks & Nature'},
+] as const
+
 export const MOOD_EMOJIS: Record<Mood, string> = {
   amazing: '😊',
   great: '😍',

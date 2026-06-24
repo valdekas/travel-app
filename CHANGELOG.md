@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-06-24 (Suggestions tab — AI-generated trip recommendations)
+
+### Added — `supabase/migrations/014_trip_suggestions.sql`, `app/api/suggestions/generate/route.ts`, `app/(dashboard)/trips/[id]/suggestions/page.tsx`, `components/trips/suggestions-content.tsx`
+### Changed — `lib/types/index.ts`, `components/trips/trip-detail-shell.tsx`, `components/trips/create-trip-form.tsx`
+
+**New Suggestions tab in trip detail navigation** (between Places and Itinerary):
+- Pre-generated AI recommendations stored in Supabase and displayed in a dedicated tab
+- Fire-and-forget generation triggered automatically at trip creation — does not block the redirect
+
+**Database (`014_trip_suggestions.sql`):**
+- `trip_suggestions` table: id, trip_id, user_id, category, name, description, why_visit, price_range, best_time_to_visit, must_try, tip, emoji, added_to_places, added_to_itinerary
+- RLS policy: users manage only their own suggestions
+- Index on trip_id for fast per-trip fetches
+
+**Generation API (`POST /api/suggestions/generate`):**
+- Authenticated via cookies (fire-and-forget from browser has auth cookies on same origin)
+- Verifies trip belongs to the authenticated user before generating
+- Skips if suggestions already exist (idempotent)
+- Calls Claude Haiku for all 6 categories in parallel (5 items each)
+- Graceful: if one category fails to parse, it's skipped; others are stored
+- Maps Claude camelCase fields to DB snake_case columns
+
+**Suggestions tab UI (`suggestions-content.tsx`):**
+- 6 category sections: Restaurants, Attractions, Viewpoints, Museums, Bars, Parks & Nature
+- Cards: emoji, name, price badge (colour-coded), description, why-visit quote, best-time, must-try chip, insider tip
+- Horizontal scroll per category on mobile; responsive grid (2-4 cols) on desktop
+- **+ Places** button → inserts into `locations` table, marks `added_to_places = true`, optimistic UI
+- **+ Itinerary** button → day picker dialog (lists itinerary days with date), inserts into `itinerary_items`, marks `added_to_itinerary = true`
+- Added cards show "✓ In Places" / "✓ In Itinerary" badges instead of buttons
+- **Generating state**: animated Sparkles loader with bouncing dots while waiting (polls every 5s via `router.refresh()`, up to 60s)
+- **Empty state**: friendly message with Refresh button if polling exhausted
+
 ## 2026-06-24 (Custom hero image upload for trips)
 
 ### Added — `validateHeroImageFile`, `uploadCustomHeroImage` in `lib/utils/trip-hero-image.ts`
