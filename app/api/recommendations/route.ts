@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-  const { type, destination, country, duration, category, existingItems } = await req.json()
+  const { type, destination, country, duration, category, area, existingItems } = await req.json()
 
   const exclusions =
     existingItems?.length > 0
@@ -21,16 +21,23 @@ export async function POST(req: NextRequest) {
   const cityName = destination?.split(',')[0]?.trim() || country
 
   const categoryLabel = (category as string) || 'popular spots'
+  const areaName = (area as string | undefined)?.trim() || null
 
   let prompt: string
 
   if (type === 'places') {
-    prompt = `You are a travel expert. Suggest exactly 15 ${categoryLabel} specifically in ${location}.
+    const focusLabel = areaName ? `near ${areaName} in ${location}` : `in ${location}`
+    const scopeLabel = areaName ? `in the ${areaName} area of ${cityName}` : `physically located in ${cityName} itself`
+    const noStray = areaName
+      ? `Focus specifically on the ${areaName} neighbourhood/area and immediate surroundings. Do NOT suggest places far from ${areaName}.`
+      : `Do NOT suggest items in other cities, generic country-wide attractions, or anything outside ${cityName}.`
+
+    prompt = `You are a travel expert. Suggest exactly 15 ${categoryLabel} specifically ${focusLabel}.
 
 IMPORTANT:
-- Focus ONLY on ${categoryLabel} — every single item must be a ${categoryLabel.toLowerCase()} physically located in ${cityName} itself.
-- Do NOT suggest items in other cities, generic country-wide attractions, or anything outside ${cityName}.
-- Use real, well-known, highly-rated places that a tourist visiting ${cityName} can actually go to.${exclusions}
+- Focus ONLY on ${categoryLabel} — every single item must be a ${categoryLabel.toLowerCase()} ${scopeLabel}.
+- ${noStray}
+- Use real, well-known, highly-rated places that a tourist visiting ${areaName || cityName} can actually go to.${exclusions}
 
 Return exactly 15 items. Respond ONLY with a valid JSON array. No markdown, no code fences, no explanation.
 Each object must have exactly these fields:
@@ -47,12 +54,17 @@ Each object must have exactly these fields:
 Example for Chicago Restaurants:
 [{"name":"Lou Malnati's Pizzeria","category":"Restaurant","emoji":"🍕","description":"Chicago's most beloved deep dish pizza chain, serving buttery crust pies stuffed with sausage and vine-ripened tomatoes since 1971.","whyVisit":"Widely considered the gold standard of Chicago-style deep dish — a cult favourite among locals and visitors alike.","priceRange":"$$","bestTimeToVisit":"Lunch or dinner","mustTry":"Malnati Chicago Classic deep dish with sausage","tip":"Expect a 20-minute wait for deep dish — order thin crust if you're in a hurry"}]`
   } else {
-    prompt = `You are a travel expert. Suggest exactly 15 ${categoryLabel} experiences specifically in ${location}.
+    const focusLabelIt = areaName ? `near ${areaName} in ${location}` : `in ${location}`
+    const noStrayIt = areaName
+      ? `Focus specifically on the ${areaName} area and immediate surroundings. Do NOT suggest activities far from ${areaName}.`
+      : `Do NOT suggest activities in other cities or generic country-wide experiences.`
+
+    prompt = `You are a travel expert. Suggest exactly 15 ${categoryLabel} experiences specifically ${focusLabelIt}.
 
 IMPORTANT:
-- Focus ONLY on ${categoryLabel} — every single item must be a ${categoryLabel.toLowerCase()} experience physically available in ${cityName} itself.
-- Do NOT suggest activities in other cities or generic country-wide experiences.
-- Use real, bookable, highly-rated activities that a tourist staying in ${cityName} can actually do.${exclusions}
+- Focus ONLY on ${categoryLabel} — every single item must be a ${categoryLabel.toLowerCase()} experience physically available in ${areaName ? `the ${areaName} area of ${cityName}` : cityName} itself.
+- ${noStrayIt}
+- Use real, bookable, highly-rated activities that a tourist staying in ${areaName || cityName} can actually do.${exclusions}
 
 Return exactly 15 items. Respond ONLY with a valid JSON array. No markdown, no code fences, no explanation.
 Each object must have exactly these fields:

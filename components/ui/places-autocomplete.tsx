@@ -24,6 +24,7 @@ interface Props {
   onPlaceSelect: (place: PlaceDetails) => void
   placeholder?: string
   className?: string
+  locationBias?: { lat: number; lng: number; radiusMeters?: number }
 }
 
 // Module-level singleton so the script is only injected once
@@ -77,7 +78,7 @@ function extractPlace(place: google.maps.places.PlaceResult): PlaceDetails {
   }
 }
 
-export function PlacesAutocomplete({ value, onChange, onPlaceSelect, placeholder, className }: Props) {
+export function PlacesAutocomplete({ value, onChange, onPlaceSelect, placeholder, className, locationBias }: Props) {
   const [predictions, setPredictions] = useState<google.maps.places.AutocompletePrediction[]>([])
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
@@ -121,7 +122,12 @@ export function PlacesAutocomplete({ value, onChange, onPlaceSelect, placeholder
       return
     }
     setLoading(true)
-    serviceRef.current.getPlacePredictions({ input }, (preds, status) => {
+    const request: google.maps.places.AutocompletionRequest = { input }
+    if (locationBias?.lat != null && locationBias?.lng != null) {
+      request.location = new google.maps.LatLng(locationBias.lat, locationBias.lng)
+      request.radius = locationBias.radiusMeters ?? 50000
+    }
+    serviceRef.current.getPlacePredictions(request, (preds, status) => {
       setLoading(false)
       if (status === google.maps.places.PlacesServiceStatus.OK && preds) {
         setPredictions(preds)
@@ -132,7 +138,7 @@ export function PlacesAutocomplete({ value, onChange, onPlaceSelect, placeholder
         setOpen(false)
       }
     })
-  }, [])
+  }, [locationBias?.lat, locationBias?.lng, locationBias?.radiusMeters])
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value

@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-06-24 (Suggestions: optional area/neighbourhood refinement step)
+
+### Added — `components/trips/places-suggestions-panel.tsx`, `components/itinerary/itinerary-suggestions-panel.tsx`, `app/api/recommendations/route.ts`, `components/ui/places-autocomplete.tsx`
+
+**New intermediate "area" step between category selection and results:**
+- After choosing a category, a "Where in [city]?" screen appears before fetching
+- Google Places autocomplete biased to trip's lat/lng (50 km radius) when coordinates are stored
+- Selecting an area shows a removable pill: `📍 River North ×`
+- "Skip — search all of [city]" text link fetches whole-city results (existing behaviour)
+- "Find [Category] near [Area]" / "Find [Category] in [City]" primary button adapts label to selection
+- Back navigation: area step → categories; results step → area step (to change area without re-selecting category)
+
+**Cache key updated to include area:**
+- `suggestions_${trip.id}_${cat.id}_places_${area || 'all'}` — River North and Wicker Park results cached separately; whole-city has its own entry
+- Identical category + area combination within 30 min → instant cache hit, no API call
+
+**API prompt updated to focus on area when provided:**
+- Places: "Suggest 15 [category] near [area] in [city]. Focus specifically on the [area] neighbourhood and immediate surroundings."
+- Itinerary: same area-scoped prompt
+- Without area: existing whole-city prompt unchanged
+
+**`PlacesAutocomplete` — optional `locationBias` prop:**
+- `locationBias?: { lat: number; lng: number; radiusMeters?: number }` — biases autocomplete predictions without hard-filtering; falls back to global if omitted
+- All existing usages unaffected (prop is optional)
+
 ## 2026-06-24 (Suggestions: 30-min cache + richer suggestion cards)
 
 ### Added/Changed — `lib/utils/suggestions-cache.ts` (new), `app/api/recommendations/route.ts`, `components/trips/places-suggestions-panel.tsx`, `components/itinerary/itinerary-suggestions-panel.tsx`

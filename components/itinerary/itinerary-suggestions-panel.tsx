@@ -9,8 +9,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { PlacesAutocomplete } from '@/components/ui/places-autocomplete'
 import { toast } from 'sonner'
-import { Sparkles, Loader2, RefreshCw, ChevronLeft, Clock, Timer } from 'lucide-react'
+import { Sparkles, Loader2, RefreshCw, ChevronLeft, Clock, Timer, X } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 
 // ── Category definitions ───────────────────────────────────────────────────────
@@ -44,7 +45,7 @@ interface ItinerarySuggestion {
   tip: string
 }
 
-type Step = 'categories' | 'results'
+type Step = 'categories' | 'area' | 'results'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -203,6 +204,8 @@ export function ItinerarySuggestionsPanel({
   const [open, setOpen]                     = useState(false)
   const [step, setStep]                     = useState<Step>('categories')
   const [activeCategory, setActiveCategory] = useState<ActivityCategory | null>(null)
+  const [areaInput, setAreaInput]           = useState('')
+  const [selectedArea, setSelectedArea]     = useState<string | null>(null)
   const [loading, setLoading]               = useState(false)
   const [error, setError]                   = useState<string | null>(null)
   const [suggestions, setSuggestions]       = useState<ItinerarySuggestion[]>([])
@@ -216,24 +219,33 @@ export function ItinerarySuggestionsPanel({
     setOpen(true)
     setStep('categories')
     setActiveCategory(null)
+    setAreaInput('')
+    setSelectedArea(null)
     setSuggestions([])
     setSelected(new Set())
     setError(null)
     setSelectedDayId(days.length === 1 ? days[0].id : '')
   }
 
-  async function selectCategory(cat: ActivityCategory) {
+  function selectCategory(cat: ActivityCategory) {
     setActiveCategory(cat)
+    setAreaInput('')
+    setSelectedArea(null)
+    setSuggestions([])
+    setSelected(new Set())
+    setError(null)
+    setStep('area')
+  }
+
+  async function fetchSuggestions(cat: ActivityCategory, area: string | null) {
     setStep('results')
     setError(null)
     setSuggestions([])
     setSelected(new Set())
 
-    // Check cache first — instant load, no API call
-    const cacheKey = `suggestions_${trip.id}_${cat.id}_itinerary`
+    const cacheKey = `suggestions_${trip.id}_${cat.id}_itinerary_${area || 'all'}`
     const cached = getCachedSuggestions<ItinerarySuggestion>(cacheKey)
     if (cached) {
-      setLoading(false)
       setSuggestions(cached)
       return
     }
@@ -249,6 +261,7 @@ export function ItinerarySuggestionsPanel({
           country: trip.country,
           duration: tripDurationDays(trip),
           category: cat.id,
+          area: area || undefined,
           existingItems: existingNames,
         }),
       })
@@ -264,13 +277,28 @@ export function ItinerarySuggestionsPanel({
     }
   }
 
-  function goBack() {
+  function goBackToCategories() {
     setStep('categories')
     setActiveCategory(null)
+    setAreaInput('')
+    setSelectedArea(null)
     setSuggestions([])
     setSelected(new Set())
     setError(null)
     setLoading(false)
+  }
+
+  function goBackToArea() {
+    setStep('area')
+    setSuggestions([])
+    setSelected(new Set())
+    setError(null)
+    setLoading(false)
+  }
+
+  function clearArea() {
+    setSelectedArea(null)
+    setAreaInput('')
   }
 
   function toggle(idx: number) {
@@ -321,6 +349,9 @@ export function ItinerarySuggestionsPanel({
   const selCount     = selected.size
   const needsDayPick = days.length > 1
   const canAdd       = selCount > 0 && (!needsDayPick || !!selectedDayId)
+  const locationBias = trip.lat != null && trip.lng != null
+    ? { lat: trip.lat, lng: trip.lng }
+    : undefined
 
   return (
     <>
@@ -352,73 +383,138 @@ export function ItinerarySuggestionsPanel({
                 What kind of activities are you looking for? Choose a category.
               </p>
             )}
-            {step === 'results' && activeCategory && (
-              <div className="flex items-center gap-2 mt-1">
+            {(step === 'area' || step === 'results') && activeCategory && (
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <button
-                  onClick={goBack}
+                  onClick={step === 'area' ? goBackToCategories : goBackToArea}
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                   {activeCategory.name}
                 </button>
-                {loading && (
+                {step === 'results' && selectedArea && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <span className="text-muted-foreground/40">·</span>
+                    <span className="text-violet-600 dark:text-violet-400">{selectedArea}</span>
+                  </span>
+                )}
+                {step === 'results' && loading && (
                   <span className="text-xs text-muted-foreground">
-                    · Finding the best {activeCategory.name.toLowerCase()} in {city}…
+                    · Finding the best {activeCategory.name.toLowerCase()}
+                    {selectedArea ? ` near ${selectedArea}` : ` in ${city}`}…
                   </span>
                 )}
               </div>
             )}
           </DialogHeader>
 
-          {/* Scrollable body */}
-          <div className="flex-1 overflow-y-auto min-h-0">
+          {/* Area step — outside scroll container so autocomplete dropdown isn't clipped */}
+          {step === 'area' && (
+            <div className="px-5 py-5">
+              <p className="text-sm font-medium text-foreground mb-1">Where in {city}?</p>
+              <p className="text-xs text-muted-foreground mb-4">
+                Search for a neighbourhood, landmark, or area — or skip to search the whole city
+              </p>
 
-            {/* Step 1: Category picker */}
-            {step === 'categories' && (
-              <div className="px-5 py-5">
-                <div className="grid grid-cols-2 gap-3">
-                  {CATEGORIES.map(cat => (
-                    <CategoryCard key={cat.id} cat={cat} onClick={() => selectCategory(cat)} />
+              <PlacesAutocomplete
+                value={areaInput}
+                onChange={setAreaInput}
+                onPlaceSelect={(place) => {
+                  setSelectedArea(place.name)
+                  setAreaInput(place.name)
+                }}
+                placeholder={`e.g. River North, Millennium Park, Old Town…`}
+                locationBias={locationBias}
+              />
+
+              {selectedArea && (
+                <div className="mt-2.5">
+                  <span className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 text-xs font-medium border border-violet-200/60 dark:border-violet-700/60">
+                    📍 {selectedArea}
+                    <button
+                      onClick={clearArea}
+                      className="hover:bg-violet-200/80 dark:hover:bg-violet-800/80 rounded-full p-0.5 transition-colors"
+                      aria-label="Clear area"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                </div>
+              )}
+
+              <div className="mt-4 flex items-center justify-between">
+                <button
+                  onClick={() => fetchSuggestions(activeCategory!, null)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2 decoration-muted-foreground/40"
+                >
+                  Skip — search all of {city}
+                </button>
+              </div>
+
+              <Button
+                onClick={() => fetchSuggestions(activeCategory!, selectedArea)}
+                className="w-full mt-4 bg-violet-600 hover:bg-violet-700 text-white"
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                {selectedArea
+                  ? `Find ${activeCategory?.name} near ${selectedArea}`
+                  : `Find ${activeCategory?.name} in ${city}`
+                }
+              </Button>
+            </div>
+          )}
+
+          {/* Scrollable body — categories + results only */}
+          {step !== 'area' && (
+            <div className="flex-1 overflow-y-auto min-h-0">
+
+              {/* Step 1: Category picker */}
+              {step === 'categories' && (
+                <div className="px-5 py-5">
+                  <div className="grid grid-cols-2 gap-3">
+                    {CATEGORIES.map(cat => (
+                      <CategoryCard key={cat.id} cat={cat} onClick={() => selectCategory(cat)} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Results */}
+              {step === 'results' && (
+                <div className="px-5 py-4 space-y-2.5">
+                  {loading && Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+
+                  {error && (
+                    <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-5 text-center">
+                      <p className="text-sm text-destructive mb-3">{error}</p>
+                      <Button
+                        variant="outline" size="sm"
+                        onClick={() => activeCategory && fetchSuggestions(activeCategory, selectedArea)}
+                        className="gap-1.5"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" /> Try again
+                      </Button>
+                    </div>
+                  )}
+
+                  {!loading && !error && suggestions.length === 0 && (
+                    <div className="py-12 text-center text-muted-foreground text-sm">No suggestions returned.</div>
+                  )}
+
+                  {!loading && !error && suggestions.map((s, i) => (
+                    <SuggestionCard
+                      key={i}
+                      suggestion={s}
+                      selected={selected.has(i)}
+                      onToggle={() => toggle(i)}
+                    />
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+          )}
 
-            {/* Step 2: Results */}
-            {step === 'results' && (
-              <div className="px-5 py-4 space-y-2.5">
-                {loading && Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
-
-                {error && (
-                  <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-5 text-center">
-                    <p className="text-sm text-destructive mb-3">{error}</p>
-                    <Button
-                      variant="outline" size="sm"
-                      onClick={() => activeCategory && selectCategory(activeCategory)}
-                      className="gap-1.5"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" /> Try again
-                    </Button>
-                  </div>
-                )}
-
-                {!loading && !error && suggestions.length === 0 && (
-                  <div className="py-12 text-center text-muted-foreground text-sm">No suggestions returned.</div>
-                )}
-
-                {!loading && !error && suggestions.map((s, i) => (
-                  <SuggestionCard
-                    key={i}
-                    suggestion={s}
-                    selected={selected.has(i)}
-                    onToggle={() => toggle(i)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Footer — only in results step with suggestions */}
+          {/* Footer — results step only */}
           {step === 'results' && !loading && !error && suggestions.length > 0 && (
             <div className="px-5 py-4 border-t border-border/50 shrink-0 space-y-3">
               {needsDayPick && selCount > 0 && (
