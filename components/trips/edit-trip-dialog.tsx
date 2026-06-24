@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Trip, CURRENCY_OPTIONS } from '@/lib/types'
 import { getCityOrCountryImage, getDestinationImage } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { uploadCustomHeroImage, validateHeroImageFile } from '@/lib/utils/trip-hero-image'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,7 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Edit, Loader2, ImageIcon, Wand2, Link as LinkIcon, X, ClipboardCheck } from 'lucide-react'
+import { Edit, Loader2, ImageIcon, Wand2, Link as LinkIcon, Upload, X, ClipboardCheck } from 'lucide-react'
 
 interface EditTripDialogProps {
   trip: Trip
@@ -22,9 +23,14 @@ interface EditTripDialogProps {
 export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
   const router = useRouter()
   const supabase = createClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showUrlInput, setShowUrlInput] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null)
+
   const [form, setForm] = useState({
     name: trip.name,
     country: trip.country,
@@ -41,33 +47,81 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
 
   const set = (k: string, v: string | null) => setForm(f => ({ ...f, [k]: v ?? '' }))
 
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl)
+      setFilePreviewUrl(null)
+      setSelectedFile(null)
+      setShowUrlInput(false)
+    }
+    setOpen(next)
+  }
+
   function applyDestinationImage() {
     const img =
       getCityOrCountryImage(form.city) ||
       getDestinationImage({ name: form.name, country: form.country })
     set('cover_photo', img)
+    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl)
+    setFilePreviewUrl(null)
+    setSelectedFile(null)
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const err = validateHeroImageFile(file)
+    if (err) { toast.error(err); return }
+    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl)
+    setSelectedFile(file)
+    setFilePreviewUrl(URL.createObjectURL(file))
+    // Clear URL input since file takes over
+    setShowUrlInput(false)
+    // Reset input so the same file can be re-selected
+    e.target.value = ''
+  }
+
+  function clearPhoto() {
+    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl)
+    setFilePreviewUrl(null)
+    setSelectedFile(null)
+    set('cover_photo', '')
   }
 
   async function handleSave() {
     setLoading(true)
     try {
+      let coverPhotoUrl = form.cover_photo
+
+      if (selectedFile) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error('Not authenticated')
+        const uploaded = await uploadCustomHeroImage(supabase, selectedFile, user.id, trip.id)
+        if (uploaded) {
+          coverPhotoUrl = uploaded
+        } else {
+          toast.error('Photo upload failed — other changes were saved')
+          // Don't abort the save; fall through with the existing URL
+        }
+      }
+
       const { error } = await supabase.from('trips').update({
-        name: form.name,
-        country: form.country,
-        city: form.city || null,
-        start_date: form.start_date || null,
-        end_date: form.end_date || null,
-        budget: parseFloat(form.budget) || 0,
-        currency: form.currency,
-        notes: form.notes || null,
-        status: form.status,
+        name:        form.name,
+        country:     form.country,
+        city:        form.city || null,
+        start_date:  form.start_date || null,
+        end_date:    form.end_date || null,
+        budget:      parseFloat(form.budget) || 0,
+        currency:    form.currency,
+        notes:       form.notes || null,
+        status:      form.status,
         is_planning: form.is_planning,
-        cover_photo: form.cover_photo || null,
+        cover_photo: coverPhotoUrl || null,
       }).eq('id', trip.id)
 
       if (error) throw error
       toast.success('Trip updated')
-      setOpen(false)
+      handleOpenChange(false)
       router.refresh()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Update failed')
@@ -76,10 +130,14 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
     }
   }
 
-  const previewSrc = form.cover_photo || getDestinationImage({ name: form.name, country: form.country })
+  const previewSrc = filePreviewUrl ||
+    form.cover_photo ||
+    getDestinationImage({ name: form.name, country: form.country })
+
+  const hasPhoto = !!(filePreviewUrl || form.cover_photo)
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={glassMode ? (
         <button className="flex items-center gap-1.5 text-white/90 hover:text-white text-xs font-medium bg-black/30 hover:bg-black/50 backdrop-blur-sm border border-white/15 rounded-full px-3 py-1.5 transition-all">
           <Edit className="h-3.5 w-3.5" /> Edit
@@ -163,20 +221,17 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
               type="button"
               onClick={() => setForm(f => ({ ...f, is_planning: !f.is_planning }))}
               className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-                form.is_planning
-                  ? 'bg-amber-500'
-                  : 'bg-slate-300 dark:bg-slate-600'
+                form.is_planning ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-600'
               }`}
               role="switch"
               aria-checked={form.is_planning}
             >
-              <span
-                className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transform transition-transform ${
-                  form.is_planning ? 'translate-x-4' : 'translate-x-0'
-                }`}
-              />
+              <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transform transition-transform ${
+                form.is_planning ? 'translate-x-4' : 'translate-x-0'
+              }`} />
             </button>
           </div>
+
           <div className="space-y-1.5">
             <Label>Notes</Label>
             <Textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} />
@@ -187,6 +242,11 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
             <div className="flex items-center gap-2">
               <ImageIcon className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium">Cover Image</span>
+              {selectedFile && (
+                <span className="text-[11px] text-violet-600 dark:text-violet-400 font-medium">
+                  · {selectedFile.name}
+                </span>
+              )}
             </div>
 
             {/* Preview */}
@@ -203,12 +263,12 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
                   <ImageIcon className="h-8 w-8" />
                 </div>
               )}
-              {form.cover_photo && (
+              {hasPhoto && (
                 <button
                   type="button"
-                  onClick={() => set('cover_photo', '')}
+                  onClick={clearPhoto}
                   className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition-colors"
-                  title="Remove"
+                  title="Remove photo"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -226,8 +286,25 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
               />
             </div>
 
-            {/* Actions */}
+            {/* Action buttons */}
             <div className="flex flex-wrap gap-2">
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-3 w-3" /> Upload photo
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -246,13 +323,13 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
               >
                 <LinkIcon className="h-3 w-3" /> Paste URL
               </Button>
-              {form.cover_photo && (
+              {hasPhoto && (
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   className="gap-1.5 text-xs text-destructive hover:text-destructive"
-                  onClick={() => set('cover_photo', '')}
+                  onClick={clearPhoto}
                 >
                   <X className="h-3 w-3" /> Remove
                 </Button>
@@ -265,16 +342,27 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
                   type="url"
                   placeholder="https://images.unsplash.com/…"
                   value={form.cover_photo}
-                  onChange={e => set('cover_photo', e.target.value)}
+                  onChange={e => {
+                    set('cover_photo', e.target.value)
+                    // If user pastes a URL, discard any locally selected file
+                    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl)
+                    setFilePreviewUrl(null)
+                    setSelectedFile(null)
+                  }}
                 />
               </div>
             )}
           </div>
 
           <div className="flex gap-3 pt-1">
-            <Button variant="outline" onClick={() => setOpen(false)} className="flex-1">Cancel</Button>
+            <Button variant="outline" onClick={() => handleOpenChange(false)} className="flex-1" disabled={loading}>
+              Cancel
+            </Button>
             <Button onClick={handleSave} disabled={loading} className="flex-1">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Changes'}
+              {loading
+                ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />{selectedFile ? 'Uploading…' : 'Saving…'}</>
+                : 'Save Changes'
+              }
             </Button>
           </div>
         </div>

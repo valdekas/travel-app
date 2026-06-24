@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-06-24 (Custom hero image upload for trips)
+
+### Added — `validateHeroImageFile`, `uploadCustomHeroImage` in `lib/utils/trip-hero-image.ts`
+### Changed — `components/trips/edit-trip-dialog.tsx`, `components/trips/create-trip-form.tsx`, `components/trips/trip-detail-shell.tsx`
+
+Users can now upload a custom cover photo for any trip from three entry points:
+
+**Edit Trip Dialog (`edit-trip-dialog.tsx`):**
+- "Upload photo" button opens a hidden `<input type="file">` (JPEG/PNG/WebP, max 5 MB)
+- Selected file is immediately previewed via `URL.createObjectURL`
+- On Save: `uploadCustomHeroImage` runs before the DB update; returned URL replaces `cover_photo`
+- File and URL inputs are mutually exclusive — selecting one clears the other
+- Object URL is revoked on dialog close
+- Graceful degradation: if upload fails, other changes (name, dates, budget, etc.) still save
+
+**Create Trip Form (`create-trip-form.tsx`):**
+- "Upload photo" button added to the Cover Image card, alongside "Use destination image" and "Paste URL"
+- Selecting a file previews it immediately; destination auto-fill does not overwrite a selected file
+- On submit: if a file was selected, `uploadCustomHeroImage` runs after INSERT and updates `cover_photo` (overrides the Google URL fire-and-forget path)
+- Clearing the photo or clicking "Use destination image" discards the file selection
+
+**Trip Detail Shell — floating "Change photo" button (`trip-detail-shell.tsx`):**
+- Camera icon button floats over the hero image: always visible on mobile, revealed on hover on desktop
+- Opens a modal dialog with: current image preview, "Upload from device" card, "Reset to auto" card
+- Reset to auto: clears `cover_photo` in the DB and falls back to `getCityOrCountryImage` / `getDestinationImage`
+- Upload: validates, uploads to Supabase Storage, updates DB, updates `imgSrc` state immediately without full reload
+- `router.refresh()` syncs server state after both save and reset
+
+**Shared utilities (`lib/utils/trip-hero-image.ts`):**
+- `validateHeroImageFile(file)` — checks MIME type and size; returns error string or null
+- `uploadCustomHeroImage(supabase, file, userId, tripId)` — uploads to `{userId}/{tripId}/hero.{ext}` with upsert, returns permanent public URL or null
+
+---
+
 ## 2026-06-24 (Fix expiring Google Places hero images via Supabase Storage)
 
 ### Added — `supabase/migrations/013_trip_hero_storage.sql`, `lib/utils/trip-hero-image.ts`, `app/api/trips/hero/route.ts`

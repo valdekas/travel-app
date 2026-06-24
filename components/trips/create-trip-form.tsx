@@ -15,10 +15,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card'
 import { PlacesAutocomplete } from '@/components/ui/places-autocomplete'
 import { toast } from 'sonner'
-import { isGooglePhotoUrl } from '@/lib/utils/trip-hero-image'
+import { isGooglePhotoUrl, validateHeroImageFile, uploadCustomHeroImage } from '@/lib/utils/trip-hero-image'
 import {
   Globe, Calendar, DollarSign, FileText, ImageIcon,
-  Loader2, Wand2, Link as LinkIcon, X, MapPin,
+  Loader2, Wand2, Link as LinkIcon, X, MapPin, Upload,
 } from 'lucide-react'
 
 interface DestRef {
@@ -31,8 +31,11 @@ interface DestRef {
 export function CreateTripForm() {
   const router = useRouter()
   const supabase = createClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
   const [showUrlInput, setShowUrlInput] = useState(false)
+  const [heroFile, setHeroFile] = useState<File | null>(null)
+  const [heroPreviewUrl, setHeroPreviewUrl] = useState<string | null>(null)
   const [form, setForm] = useState({
     name: '',
     country: '',
@@ -56,6 +59,30 @@ export function CreateTripForm() {
       getDestinationImage({ name: tripName, country }) ||
       ''
     set('cover_photo', img)
+    coverManuallySet.current = false
+    if (heroPreviewUrl) URL.revokeObjectURL(heroPreviewUrl)
+    setHeroPreviewUrl(null)
+    setHeroFile(null)
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const err = validateHeroImageFile(file)
+    if (err) { toast.error(err); return }
+    if (heroPreviewUrl) URL.revokeObjectURL(heroPreviewUrl)
+    setHeroFile(file)
+    setHeroPreviewUrl(URL.createObjectURL(file))
+    coverManuallySet.current = true
+    setShowUrlInput(false)
+    e.target.value = ''
+  }
+
+  function clearPhoto() {
+    if (heroPreviewUrl) URL.revokeObjectURL(heroPreviewUrl)
+    setHeroPreviewUrl(null)
+    setHeroFile(null)
+    set('cover_photo', '')
     coverManuallySet.current = false
   }
 
@@ -95,6 +122,16 @@ export function CreateTripForm() {
 
       if (error) throw error
 
+      // Upload custom hero image (takes priority over Google URL fire-and-forget)
+      if (heroFile) {
+        const uploaded = await uploadCustomHeroImage(supabase, heroFile, user.id, data.id)
+        if (uploaded) {
+          await supabase.from('trips').update({ cover_photo: uploaded }).eq('id', data.id)
+        } else {
+          toast.error('Photo upload failed — trip was created with destination image instead')
+        }
+      }
+
       await supabase.from('checklist_items').insert([
         { trip_id: data.id, category: 'documents', title: 'Passport',            order_index: 0 },
         { trip_id: data.id, category: 'documents', title: 'Travel Insurance',    order_index: 1 },
@@ -127,9 +164,8 @@ export function CreateTripForm() {
         }
       }
 
-      // Fire hero image storage in background — converts the temporary Google
-      // URL to a permanent Supabase Storage URL without blocking the redirect.
-      if (cover && isGooglePhotoUrl(cover)) {
+      // Fire hero image storage in background — only when no custom file was uploaded.
+      if (!heroFile && cover && isGooglePhotoUrl(cover)) {
         void fetch('/api/trips/hero', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -146,9 +182,12 @@ export function CreateTripForm() {
     }
   }
 
-  const previewSrc = form.cover_photo ||
+  const previewSrc = heroPreviewUrl ||
+    form.cover_photo ||
     getCityOrCountryImage(form.city) ||
     getDestinationImage({ name: form.name, country: form.country })
+
+  const hasPhoto = !!(heroPreviewUrl || form.cover_photo)
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -183,7 +222,7 @@ export function CreateTripForm() {
                 set('country', p.country)
                 set('country_code', p.countryCode)
                 destRef.current = { lat: p.lat, lng: p.lng, region: p.region, city }
-                if (!coverManuallySet.current) {
+                if (!coverManuallySet.current && !heroFile) {
                   const img = p.photoUrl ||
                     getCityOrCountryImage(city) ||
                     getCityOrCountryImage(p.country) ||
@@ -231,6 +270,11 @@ export function CreateTripForm() {
           <div className="flex items-center gap-2 mb-2">
             <ImageIcon className="h-4 w-4 text-primary" />
             <h2 className="font-semibold">Cover Image</h2>
+            {heroFile && (
+              <span className="text-[11px] text-violet-600 dark:text-violet-400 font-medium ml-1">
+                · {heroFile.name}
+              </span>
+            )}
           </div>
 
           <div className="relative rounded-xl overflow-hidden h-40 bg-slate-100 dark:bg-slate-800">
@@ -247,10 +291,10 @@ export function CreateTripForm() {
                 <p className="text-sm">Auto-fills from destination</p>
               </div>
             )}
-            {form.cover_photo && (
+            {hasPhoto && (
               <button
                 type="button"
-                onClick={() => { set('cover_photo', ''); coverManuallySet.current = false }}
+                onClick={clearPhoto}
                 className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition-colors"
               >
                 <X className="h-3.5 w-3.5" />
@@ -259,17 +303,29 @@ export function CreateTripForm() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
             <Button type="button" variant="outline" size="sm" className="gap-1.5"
-              onClick={() => { coverManuallySet.current = false; applyDestinationImage(form.city, form.country, form.name) }}>
+              onClick={() => fileInputRef.current?.click()}>
+              <Upload className="h-3.5 w-3.5" /> Upload photo
+            </Button>
+            <Button type="button" variant="outline" size="sm" className="gap-1.5"
+              onClick={() => applyDestinationImage(form.city, form.country, form.name)}>
               <Wand2 className="h-3.5 w-3.5" /> Use destination image
             </Button>
             <Button type="button" variant="outline" size="sm" className="gap-1.5"
               onClick={() => setShowUrlInput(v => !v)}>
               <LinkIcon className="h-3.5 w-3.5" /> Paste URL
             </Button>
-            {form.cover_photo && (
+            {hasPhoto && (
               <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive"
-                onClick={() => { set('cover_photo', ''); coverManuallySet.current = false }}>
+                onClick={clearPhoto}>
                 <X className="h-3.5 w-3.5" /> Remove
               </Button>
             )}
@@ -280,7 +336,14 @@ export function CreateTripForm() {
               <Label>Image URL</Label>
               <Input type="url" placeholder="https://images.unsplash.com/…"
                 value={form.cover_photo}
-                onChange={e => { set('cover_photo', e.target.value); coverManuallySet.current = true }} />
+                onChange={e => {
+                  set('cover_photo', e.target.value)
+                  coverManuallySet.current = true
+                  // Discard any locally selected file when URL is pasted
+                  if (heroPreviewUrl) URL.revokeObjectURL(heroPreviewUrl)
+                  setHeroPreviewUrl(null)
+                  setHeroFile(null)
+                }} />
             </div>
           )}
         </CardContent>

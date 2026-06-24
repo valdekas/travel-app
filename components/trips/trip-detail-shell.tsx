@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { Trip } from '@/lib/types'
 import { daysUntil, formatDate, getDestinationImage, getCityOrCountryImage, getTripStatusColor, getEffectiveStatus } from '@/lib/utils'
-import { isGooglePhotoUrl } from '@/lib/utils/trip-hero-image'
+import { isGooglePhotoUrl, validateHeroImageFile, uploadCustomHeroImage } from '@/lib/utils/trip-hero-image'
 import { FlagImg } from '@/components/ui/flag-img'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -14,7 +14,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import {
   LayoutDashboard, MapPin, CheckSquare, BarChart3, BookOpen,
-  Calendar, ChevronLeft, Trash2, Loader2, ClipboardCheck,
+  Calendar, ChevronLeft, Trash2, Loader2, ClipboardCheck, Camera, Upload, ImageIcon, RotateCcw,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EditTripDialog } from './edit-trip-dialog'
@@ -37,9 +37,14 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [photoOpen, setPhotoOpen] = useState(false)
+  const [heroFile, setHeroFile] = useState<File | null>(null)
+  const [heroPreviewUrl, setHeroPreviewUrl] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
 
   const days = daysUntil(trip.start_date)
   const [imgSrc, setImgSrc] = useState(getDestinationImage(trip))
@@ -77,6 +82,54 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
     }
   }
 
+  function handlePhotoFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const err = validateHeroImageFile(file)
+    if (err) { toast.error(err); return }
+    if (heroPreviewUrl) URL.revokeObjectURL(heroPreviewUrl)
+    setHeroFile(file)
+    setHeroPreviewUrl(URL.createObjectURL(file))
+    e.target.value = ''
+  }
+
+  function closePhotoDialog() {
+    if (heroPreviewUrl) URL.revokeObjectURL(heroPreviewUrl)
+    setHeroPreviewUrl(null)
+    setHeroFile(null)
+    setPhotoOpen(false)
+  }
+
+  async function handlePhotoSave() {
+    if (!heroFile) return
+    setUploading(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+      const uploaded = await uploadCustomHeroImage(supabase, heroFile, user.id, trip.id)
+      if (!uploaded) throw new Error('Upload failed — please try again')
+      const { error } = await supabase.from('trips').update({ cover_photo: uploaded }).eq('id', trip.id)
+      if (error) throw error
+      setImgSrc(uploaded)
+      toast.success('Hero photo updated')
+      closePhotoDialog()
+      router.refresh()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handlePhotoReset() {
+    const auto = getCityOrCountryImage(trip.city ?? trip.country ?? '') || getDestinationImage(trip)
+    await supabase.from('trips').update({ cover_photo: null }).eq('id', trip.id)
+    setImgSrc(auto)
+    toast.success('Photo reset to destination image')
+    closePhotoDialog()
+    router.refresh()
+  }
+
   return (
     <>
       {/* ── Unified Hero + Tabs card ── */}
@@ -86,7 +139,14 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
         <div className="md:rounded-2xl md:overflow-hidden md:ring-1 md:ring-black/[0.06] dark:md:ring-white/[0.07] md:shadow-[0_1px_4px_rgba(0,0,0,0.05),0_6px_20px_rgba(0,0,0,0.06)]">
 
           {/* Hero image */}
-          <div className="relative h-44 sm:h-56 md:h-[320px] overflow-hidden">
+          <div className="group relative h-44 sm:h-56 md:h-[320px] overflow-hidden">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              className="hidden"
+              onChange={handlePhotoFileSelect}
+            />
             <Image
               src={imgSrc}
               alt={trip.name}
@@ -106,6 +166,16 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
             {/* Gradient overlays */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/10" />
             <div className="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent" />
+
+            {/* Change photo — always on mobile, hover on desktop */}
+            <button
+              onClick={() => setPhotoOpen(true)}
+              className="absolute bottom-14 right-3 flex items-center gap-1.5 bg-black/50 hover:bg-black/70 backdrop-blur-sm border border-white/20 text-white rounded-full px-2.5 py-1.5 text-xs font-medium transition-all md:opacity-0 md:group-hover:opacity-100"
+              title="Change cover photo"
+            >
+              <Camera className="h-3 w-3" />
+              <span className="hidden sm:inline">Change photo</span>
+            </button>
 
             {/* Top row: back + actions */}
             <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
@@ -208,6 +278,83 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
 
       {/* ── Tab content ── */}
       {children}
+
+      {/* ── Change photo dialog ── */}
+      <Dialog open={photoOpen} onOpenChange={open => { if (!open) closePhotoDialog() }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-4 w-4" /> Change Cover Photo
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-1">
+            {/* Preview */}
+            <div className="relative rounded-xl overflow-hidden h-36 bg-slate-100 dark:bg-slate-800">
+              <img
+                src={heroPreviewUrl || imgSrc}
+                alt="Cover preview"
+                className="w-full h-full object-cover"
+                onError={e => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1200&q=80' }}
+              />
+              {heroFile && (
+                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-4">
+                  <p className="text-white text-[11px] font-medium truncate">{heroFile.name}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Options */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex flex-col items-center gap-2 p-3 rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-all group"
+              >
+                <div className="w-8 h-8 rounded-full bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
+                  <Upload className="h-4 w-4 text-primary" />
+                </div>
+                <span className="text-xs font-medium text-center leading-tight">Upload from device</span>
+                <span className="text-[10px] text-muted-foreground text-center">JPEG, PNG, WebP · max 5 MB</span>
+              </button>
+              <button
+                type="button"
+                onClick={handlePhotoReset}
+                className="flex flex-col items-center gap-2 p-3 rounded-xl border-2 border-dashed border-border hover:border-border/80 hover:bg-muted/50 transition-all group"
+              >
+                <div className="w-8 h-8 rounded-full bg-muted group-hover:bg-muted/80 flex items-center justify-center transition-colors">
+                  <RotateCcw className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <span className="text-xs font-medium text-center leading-tight">Reset to auto</span>
+                <span className="text-[10px] text-muted-foreground text-center">Use destination image</span>
+              </button>
+            </div>
+
+            {!heroFile && (
+              <p className="text-xs text-muted-foreground text-center">
+                Select an option above, or{' '}
+                <button
+                  className="underline hover:text-foreground transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  browse files
+                </button>
+              </p>
+            )}
+
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={closePhotoDialog} className="flex-1" disabled={uploading}>
+                Cancel
+              </Button>
+              <Button onClick={handlePhotoSave} disabled={!heroFile || uploading} className="flex-1">
+                {uploading
+                  ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Uploading…</>
+                  : <><ImageIcon className="h-4 w-4 mr-1" /> Save Photo</>
+                }
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Delete confirmation dialog ── */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
