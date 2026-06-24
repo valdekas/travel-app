@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card'
 import { PlacesAutocomplete } from '@/components/ui/places-autocomplete'
 import { toast } from 'sonner'
-import { isGooglePhotoUrl, validateHeroImageFile, uploadCustomHeroImage } from '@/lib/utils/trip-hero-image'
+import { isGooglePhotoUrl, validateHeroImageFile, uploadCustomHeroImage, downloadAndUploadHeroImage } from '@/lib/utils/trip-hero-image'
 import {
   Globe, Calendar, DollarSign, FileText, ImageIcon,
   Loader2, Wand2, Link as LinkIcon, X, MapPin, Upload,
@@ -164,12 +164,14 @@ export function CreateTripForm() {
         }
       }
 
-      // Fire hero image storage in background — only when no custom file was uploaded.
+      // Download the Google photo client-side (where the session URL is still valid)
+      // and upload permanently to Supabase Storage — fire-and-forget, doesn't block redirect.
+      // Server-side fetch returns 403; this must run in the browser.
       if (!heroFile && cover && isGooglePhotoUrl(cover)) {
-        void fetch('/api/trips/hero', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ googleImageUrl: cover, tripId: data.id }),
+        void downloadAndUploadHeroImage(supabase, cover, user.id, data.id).then(permanentUrl => {
+          if (permanentUrl) {
+            void supabase.from('trips').update({ cover_photo: permanentUrl }).eq('id', data.id)
+          }
         })
       }
 

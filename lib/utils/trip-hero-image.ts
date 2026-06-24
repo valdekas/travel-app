@@ -41,36 +41,30 @@ export async function uploadCustomHeroImage(
 }
 
 /**
- * Downloads a Google Places photo URL server-side and uploads it to the
- * trip-heroes Supabase Storage bucket. Returns the permanent public URL, or
- * null on any failure (caller should fall back to the original Google URL).
+ * Downloads a Google Places photo URL in the BROWSER (where the session token
+ * in the URL is still valid) and uploads the resulting blob to the trip-heroes
+ * Supabase Storage bucket. Returns the permanent public URL, or null on any
+ * failure. Must be called client-side — server-side fetch returns 403.
  *
  * Path: {userId}/{tripId}/hero.{ext}  — upsert so re-storing updates in place.
  */
-export async function downloadAndStoreHeroImage(
+export async function downloadAndUploadHeroImage(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any, any, any>,
-  googleImageUrl: string,
+  googleUrl: string,
   userId: string,
   tripId: string,
 ): Promise<string | null> {
   try {
-    const response = await fetch(googleImageUrl)
+    const response = await fetch(googleUrl)
     if (!response.ok) return null
-
-    const buffer = await response.arrayBuffer()
-    const contentType = response.headers.get('content-type') ?? 'image/jpeg'
-    const ext = contentType.includes('png') ? 'png'
-      : contentType.includes('webp') ? 'webp'
-      : 'jpg'
-
+    const blob = await response.blob()
+    const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg'
     const path = `${userId}/${tripId}/hero.${ext}`
     const { error } = await supabase.storage
       .from('trip-heroes')
-      .upload(path, buffer, { contentType, upsert: true })
-
+      .upload(path, blob, { contentType: blob.type, upsert: true })
     if (error) return null
-
     const { data } = supabase.storage.from('trip-heroes').getPublicUrl(path)
     return data.publicUrl
   } catch {

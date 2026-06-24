@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-06-24 (Fix hero image storage: client-side download replaces broken server route)
+
+### Changed — `lib/utils/trip-hero-image.ts`, `components/trips/create-trip-form.tsx`, `app/api/trips/hero/route.ts`
+
+**Root cause:** Google Places `PhotoService.GetPhoto` URLs are browser-session-scoped and tied to the `r_url` referrer parameter. Server-side `fetch()` from the VPS returned 403 because the Node.js process had no matching session or referrer. The `/api/trips/hero` route was therefore always returning 500 (`permanentUrl = null`).
+
+**Fix — client-side download (`create-trip-form.tsx`):**
+- After trip INSERT, if `cover_photo` is a Google URL and no custom file was selected, calls `downloadAndUploadHeroImage(supabase, cover, user.id, data.id)` directly in the browser (fire-and-forget via `.then()`)
+- The browser fetch succeeds because the `r_url` referrer matches `travel365.live` and the session token in the URL is still valid
+- On success: updates `cover_photo` in DB with the permanent Supabase Storage URL
+- On failure: DB retains the Google URL; the `onError` handler in `trip-detail-shell.tsx` self-heals later
+
+**New utility (`lib/utils/trip-hero-image.ts`):**
+- Added `downloadAndUploadHeroImage(supabase, googleUrl, userId, tripId)` — browser-only function that fetches the URL as a Blob and uploads to `trip-heroes` bucket
+- Removed `downloadAndStoreHeroImage` (dead server-side code — same logic but 403-prone)
+
+**`/api/trips/hero` route retired:**
+- Replaced with a 410 Gone stub explaining the deprecation
+- All Storage uploads now run client-side: `uploadCustomHeroImage` (device file picker) and `downloadAndUploadHeroImage` (Google URL blob)
+
+**Verified:** `edit-trip-dialog.tsx` and `trip-detail-shell.tsx` already use `@/lib/supabase/client` (browser client) — no server route involvement, no changes needed.
+
+**Remaining prerequisite:** The `trip-heroes` Storage bucket must be created manually in Supabase Dashboard (migration 013 was never applied). Once the bucket exists, all three upload paths (new trip / edit dialog / change photo button) will work.
+
 ## 2026-06-24 (Suggestions tab — AI-generated trip recommendations)
 
 ### Added — `supabase/migrations/014_trip_suggestions.sql`, `app/api/suggestions/generate/route.ts`, `app/(dashboard)/trips/[id]/suggestions/page.tsx`, `components/trips/suggestions-content.tsx`
