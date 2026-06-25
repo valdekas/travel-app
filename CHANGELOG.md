@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-06-25 (Fix destination field UX in edit-trip-dialog — clear affordance for dropdown requirement)
+
+### Changed — `components/trips/edit-trip-dialog.tsx`
+
+**Problem:** Typing a destination manually without selecting from the autocomplete dropdown left `place_id` unchanged (silently using the old stored value), making "Use destination image" either fetch the wrong trip's photo or show a confusing error.
+
+- **Fix 1 — Status hint below destination field:** Shows `✓ Location confirmed — destination image available` (emerald) when `place_id` is set; shows `Select a suggestion from the dropdown to enable destination image` (muted) when not. Label simplified from "Destination (updates hero image source)" to "Destination".
+- **Fix 2 — Clear `place_id` on manual typing:** `onChange` now calls `set('place_id', '')` alongside `set('city', v)` — typing manually always clears the confirmed place, so "Use destination image" will correctly report no confirmed destination rather than silently using a stale `place_id`.
+- **Fix 3 — Button disabled when no `place_id`:** "Use destination image" is `disabled` when `!form.place_id`, with a `title` tooltip "Select a destination from the dropdown first". No more silent failure or wrong-photo fetches.
+- **Fix 4 — Informative success toast:** After a successful fetch, shows "Destination image updated — save changes to apply" so the user knows the preview is live but Save is still needed.
+
 ## 2026-06-25 (Fix hero image editing — 4 issues in edit dialog and change-photo flow)
 
 ### Changed — `components/trips/edit-trip-dialog.tsx`, `components/trips/trip-detail-shell.tsx`

@@ -84,6 +84,7 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
         if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl)
         setFilePreviewUrl(null)
         setSelectedFile(null)
+        toast.success('Destination image updated — save changes to apply')
       } else {
         toast.error('Could not fetch destination image')
       }
@@ -305,16 +306,28 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
 
             {/* City / destination — autocomplete updates place_id for hero fetch */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Destination (updates hero image source)</Label>
+              <Label className="text-xs text-muted-foreground">Destination</Label>
               <PlacesAutocomplete
                 value={form.city}
-                onChange={v => set('city', v)}
+                onChange={v => {
+                  set('city', v)
+                  set('place_id', '') // clear confirmed place when user types manually
+                }}
                 onPlaceSelect={p => {
                   set('city', p.city || p.name)
                   set('place_id', p.placeId)
                 }}
                 placeholder="Search city or landmark…"
               />
+              {form.place_id ? (
+                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <span>✓</span> Location confirmed — destination image available
+                </p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground/60">
+                  Select a suggestion from the dropdown to enable destination image
+                </p>
+              )}
             </div>
 
             {/* Action buttons */}
@@ -342,7 +355,8 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
                 size="sm"
                 className="gap-1.5 text-xs"
                 onClick={applyDestinationImage}
-                disabled={fetchingDestImg}
+                disabled={fetchingDestImg || !form.place_id}
+                title={!form.place_id ? 'Select a destination from the dropdown first' : undefined}
               >
                 {fetchingDestImg
                   ? <><Loader2 className="h-3 w-3 animate-spin" /> Fetching…</>
