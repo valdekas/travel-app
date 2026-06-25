@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { Trip } from '@/lib/types'
 import { daysUntil, formatDate, getDestinationImage, getCityOrCountryImage, getTripStatusColor, getEffectiveStatus } from '@/lib/utils'
-import { isGooglePhotoUrl, validateHeroImageFile, uploadCustomHeroImage } from '@/lib/utils/trip-hero-image'
+import { validateHeroImageFile, uploadCustomHeroImage } from '@/lib/utils/trip-hero-image'
 import { FlagImg } from '@/components/ui/flag-img'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -161,13 +161,7 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
                 sizes="(max-width: 768px) 100vw, 1024px"
                 className="object-cover object-center"
                 priority
-                onError={() => {
-                  // Clear broken Google URL from DB, then show gradient — no re-fetch attempt
-                  if (trip.cover_photo && isGooglePhotoUrl(trip.cover_photo)) {
-                    void supabase.from('trips').update({ cover_photo: null }).eq('id', trip.id)
-                  }
-                  setImgError(true)
-                }}
+                onError={() => setImgError(true)}
               />
             ) : (
               /* Gradient placeholder for trips with no/broken cover photo */

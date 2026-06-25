@@ -41,6 +41,7 @@ export function CreateTripForm() {
     country: '',
     country_code: '',
     city: '',
+    place_id: '',
     start_date: '',
     end_date: '',
     budget: '',
@@ -108,6 +109,7 @@ export function CreateTripForm() {
         country:      form.country,
         country_code: form.country_code || null,
         city:         form.city || null,
+        place_id:     form.place_id || null,
         region:       destRef.current.region || null,
         lat:          destRef.current.lat ?? null,
         lng:          destRef.current.lng ?? null,
@@ -164,13 +166,19 @@ export function CreateTripForm() {
         }
       }
 
-      // Fetch a Pexels hero image server-side — fire-and-forget, doesn't block redirect.
+      // Fetch hero image server-side — fire-and-forget, doesn't block redirect.
+      // fetch-hero tries Google Places first (if place_id), then Pexels as fallback.
       // Only runs when the user hasn't picked a custom file (their file takes priority).
-      if (!heroFile && (form.city || form.country)) {
-        void fetch('/api/trips/pexels-hero', {
+      if (!heroFile && (form.place_id || form.city || form.country)) {
+        void fetch('/api/trips/fetch-hero', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tripId: data.id, city: form.city || null, country: form.country }),
+          body: JSON.stringify({
+            tripId:  data.id,
+            placeId: form.place_id || null,
+            city:    form.city || null,
+            country: form.country || null,
+          }),
         }).catch(() => {})
       }
 
@@ -237,6 +245,7 @@ export function CreateTripForm() {
                 set('city', city)
                 set('country', p.country)
                 set('country_code', p.countryCode)
+                set('place_id', p.placeId)
                 destRef.current = { lat: p.lat, lng: p.lng, region: p.region, city }
                 if (!coverManuallySet.current && !heroFile) {
                   const img = getCityOrCountryImage(city) ||

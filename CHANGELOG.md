@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-06-25 (Hero images via Google Places Details API with Pexels fallback)
+
+### Added — `supabase/migrations/015_trip_place_id.sql`, `app/api/trips/fetch-hero/route.ts`
+### Changed — `lib/types/index.ts`, `components/trips/create-trip-form.tsx`, `components/trips/edit-trip-dialog.tsx`, `components/trips/trip-detail-shell.tsx`
+### Removed — `app/api/trips/hero/route.ts` (retired 410 stub)
+
+**Root cause of previous failures:** Google Places photo URLs served from `maps.googleapis.com/maps/api/place/js/PhotoService.GetPhoto` are browser-session-scoped and cannot be fetched server-side (403) or via client-side `fetch()` (CORS). The Places *Details* API + Place Photo API are server-safe with a standard API key.
+
+**New flow — `POST /api/trips/fetch-hero`:**
+1. Accepts `{ tripId, placeId?, city?, country? }` — authenticated via cookies, verifies trip ownership
+2. **Path A — Google**: calls Places Details API (`?fields=photos`) → extracts `photo_reference` → calls Place Photo API (`maxwidth=1200`, follows 302 redirect) → uploads `Buffer` to `trip-heroes` Storage at `{userId}/{tripId}/hero.jpg` → updates `cover_photo`
+3. **Path B — Pexels fallback**: if placeId missing or any Google step fails, calls existing `fetchPexelsHeroImage` → updates `cover_photo` with permanent Pexels URL
+4. Returns `{ success, source: 'google'|'pexels', url }` — errors never throw, trip creation always succeeds
+
+**`place_id` stored on trips:**
+- Migration `015_trip_place_id.sql`: `ALTER TABLE trips ADD COLUMN IF NOT EXISTS place_id TEXT`
+- `Trip` interface gains `place_id?: string`
+- `create-trip-form.tsx`: stores `place_id` from `onPlaceSelect` → included in INSERT → fires `fetch('/api/trips/fetch-hero', ...)` fire-and-forget (replaces separate `pexels-hero` call)
+- `edit-trip-dialog.tsx`: initialises `place_id` from `trip.place_id` → included in UPDATE
+
+**Cleanup:**
+- `/api/trips/hero` (410 stub) removed — no longer referenced anywhere
+- `trip-detail-shell.tsx` `onError`: removed Google URL DB cleanup (we no longer store Google URLs) — simplified to `setImgError(true)`
+- `isGooglePhotoUrl` import removed from `trip-detail-shell.tsx`
+
+**Prerequisites (manual):**
+- Apply migration 015 in Supabase Dashboard or via CLI
+- `GOOGLE_PLACES_API_KEY` must have no HTTP referrer restrictions (server-side requests have no referrer) — verify in Google Cloud Console
+
 ## 2026-06-24 (Replace Google Places hero images with Pexels API)
 
 ### Added — `lib/utils/pexels-hero.ts`, `app/api/trips/pexels-hero/route.ts`

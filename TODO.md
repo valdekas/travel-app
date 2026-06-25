@@ -44,7 +44,9 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [x] Fix expiring Google Places hero images — download and store in Supabase Storage (`trip-heroes` bucket) at trip creation; self-healing onError fallback updates DB for existing trips
 * [x] Fix hero image storage: switched from broken server-side route (Google URLs return 403 from Node.js) to client-side download; then discovered CORS also blocks client-side fetch of Google URLs
 * [x] Replace Google Places hero images with Pexels API — permanent URLs, no CORS issues; fire-and-forget POST `/api/trips/pexels-hero` after trip creation; gradient placeholder for missing/broken images; `PEXELS_API_KEY` server-side only
+* [x] Google Places hero image via server-side Places Details API — migration 015 adds `place_id` to trips; `place_id` saved on autocomplete select; `/api/trips/fetch-hero` downloads photo server-side via `photo_reference` and uploads to Supabase Storage; Pexels used as fallback; old `/api/trips/hero` stub removed
 * [ ] Create `trip-heroes` Storage bucket in Supabase Dashboard (migration 013 never applied — manual step required)
+* [ ] Apply migration 015 (`place_id` column) in Supabase Dashboard or via CLI
 * [x] Custom hero image upload — Upload photo button in Edit Trip dialog + Create Trip form; floating "Change photo" button on trip hero (hover desktop, always mobile); validates type/size, uploads to trip-heroes bucket, graceful failure handling
 * [ ] Polish Hero section
 * [ ] Add weather widget (placeholder — no API yet)

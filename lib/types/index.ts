@@ -25,6 +25,7 @@ export interface Trip {
   currency: string
   notes?: string
   cover_photo?: string
+  place_id?: string
   status: TripStatus
   is_planning: boolean
   created_at: string
