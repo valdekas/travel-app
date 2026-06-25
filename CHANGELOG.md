@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-06-25 (Remove Pexels API — gradient placeholder instead of irrelevant fallback images)
+
+### Removed
+- `lib/utils/pexels-hero.ts` — deleted entirely; `fetchPexelsHeroImage` no longer exists
+- `app/api/trips/pexels-hero/route.ts` — old standalone Pexels route deleted
+
+### Changed — `app/api/trips/fetch-hero/route.ts`
+- Removed Pexels fallback path; if Google Places photo fails or `place_id` is absent, route now returns `{ success: false }` immediately
+- Removed `city`/`country` destructuring from request body (no longer used)
+- Hero pipeline is now: Google Places → Supabase Storage ✅ or gradient placeholder ✅ (no random Pexels photos)
+
 ## 2026-06-25 (Fix destination field UX in edit-trip-dialog — clear affordance for dropdown requirement)
 
 ### Changed — `components/trips/edit-trip-dialog.tsx`

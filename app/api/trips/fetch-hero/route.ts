@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { fetchPexelsHeroImage } from '@/lib/utils/pexels-hero'
 
 async function fetchGooglePlacesHero(placeId: string): Promise<Buffer | null> {
   const key = process.env.GOOGLE_PLACES_API_KEY
@@ -36,7 +35,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
-  const { tripId, placeId, city, country } = await req.json() as {
+  const { tripId, placeId } = await req.json() as {
     tripId?: string; placeId?: string; city?: string; country?: string
   }
   if (!tripId) return NextResponse.json({ error: 'tripId is required' }, { status: 400 })
@@ -46,33 +45,20 @@ export async function POST(req: NextRequest) {
     .from('trips').select('id').eq('id', tripId).eq('user_id', user.id).single()
   if (!trip) return NextResponse.json({ error: 'Trip not found' }, { status: 404 })
 
-  // --- Path A: Google Places photo (requires place_id, no HTTP referrer restrictions needed) ---
-  if (placeId) {
-    const imageBuffer = await fetchGooglePlacesHero(placeId)
-    if (imageBuffer) {
-      const path = `${user.id}/${tripId}/hero.jpg`
-      const { error: uploadErr } = await supabase.storage
-        .from('trip-heroes')
-        .upload(path, imageBuffer, { contentType: 'image/jpeg', upsert: true })
+  if (!placeId) return NextResponse.json({ success: false, error: 'No place_id provided' })
 
-      if (!uploadErr) {
-        const { data: { publicUrl } } = supabase.storage.from('trip-heroes').getPublicUrl(path)
-        await supabase.from('trips').update({ cover_photo: publicUrl }).eq('id', tripId).eq('user_id', user.id)
-        return NextResponse.json({ success: true, source: 'google', url: publicUrl })
-      }
-      // Storage upload failed — fall through to Pexels
-    }
-    // Google fetch failed — fall through to Pexels
-  }
+  // Google Places photo → Supabase Storage
+  const imageBuffer = await fetchGooglePlacesHero(placeId)
+  if (!imageBuffer) return NextResponse.json({ success: false, error: 'Google Places photo not available' })
 
-  // --- Path B: Pexels fallback ---
-  if (city || country) {
-    const pexelsUrl = await fetchPexelsHeroImage(city || country!, country || city!)
-    if (pexelsUrl) {
-      await supabase.from('trips').update({ cover_photo: pexelsUrl }).eq('id', tripId).eq('user_id', user.id)
-      return NextResponse.json({ success: true, source: 'pexels', url: pexelsUrl })
-    }
-  }
+  const path = `${user.id}/${tripId}/hero.jpg`
+  const { error: uploadErr } = await supabase.storage
+    .from('trip-heroes')
+    .upload(path, imageBuffer, { contentType: 'image/jpeg', upsert: true })
 
-  return NextResponse.json({ success: false, error: 'No hero image found' })
+  if (uploadErr) return NextResponse.json({ success: false, error: 'Storage upload failed' })
+
+  const { data: { publicUrl } } = supabase.storage.from('trip-heroes').getPublicUrl(path)
+  await supabase.from('trips').update({ cover_photo: publicUrl }).eq('id', tripId).eq('user_id', user.id)
+  return NextResponse.json({ success: true, source: 'google', url: publicUrl })
 }
