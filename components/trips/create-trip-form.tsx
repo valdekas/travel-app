@@ -16,6 +16,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { PlacesAutocomplete } from '@/components/ui/places-autocomplete'
 import { toast } from 'sonner'
 import { validateHeroImageFile, uploadCustomHeroImage } from '@/lib/utils/trip-hero-image'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
 import {
   Globe, Calendar, DollarSign, FileText, ImageIcon,
   Loader2, Wand2, Link as LinkIcon, X, MapPin, Upload,
@@ -379,15 +380,14 @@ export function CreateTripForm() {
             <Calendar className="h-4 w-4 text-primary" />
             <h2 className="font-semibold">Dates</h2>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="start_date">Departure Date</Label>
-              <Input id="start_date" type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="end_date">Return Date</Label>
-              <Input id="end_date" type="date" value={form.end_date} min={form.start_date} onChange={e => set('end_date', e.target.value)} />
-            </div>
+          <div className="space-y-1.5">
+            <Label>Travel Dates</Label>
+            <DateRangePicker
+              startDate={form.start_date || null}
+              endDate={form.end_date || null}
+              onChange={(start, end) => { set('start_date', start); set('end_date', end) }}
+              placeholder="Select departure and return dates"
+            />
           </div>
         </CardContent>
       </Card>

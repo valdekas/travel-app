@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-06-25 (Date range picker — replace two separate date inputs with single two-month calendar)
+
+### Added — `components/ui/date-range-picker.tsx` (new reusable component)
+- Single trigger button showing formatted range: "Aug 25 → Sep 5, 2026" or placeholder when empty
+- Inline calendar panel (expands in DOM flow — no z-index or overflow-clip issues inside dialogs)
+- Uses existing `Calendar` component with `mode="range"` from react-day-picker v10
+- Desktop: two months side by side; mobile (< 640 px): one month
+- `numberOfMonths` prop overrides the responsive default (edit dialog passes `1` explicitly)
+- Footer: contextual hint ("Click a departure date", "Now pick your return date", "12 nights") + Clear + Confirm buttons
+- Clicking the trigger while open discards uncommitted draft selections
+- Clear button (×) on trigger when dates are set; clicking ×  clears and closes immediately
+
+### Changed — `components/trips/create-trip-form.tsx`
+- Replaced two-column grid of `<Input type="date">` fields with `<DateRangePicker>`
+- Same `start_date`/`end_date` field names and ISO string format — Supabase unchanged
+
+### Changed — `components/trips/edit-trip-dialog.tsx`
+- Same replacement with `numberOfMonths={1}` to fit the narrow dialog
+
 ## 2026-06-25 (Fix destination display name — use place.name instead of administrative area)
 
 ### Changed — `components/ui/places-autocomplete.tsx`

@@ -52,6 +52,7 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [ ] Create `trip-heroes` Storage bucket in Supabase Dashboard (migration 013 never applied — manual step required)
 * [ ] Apply migration 015 (`place_id` column) in Supabase Dashboard or via CLI
 * [x] Custom hero image upload — Upload photo button in Edit Trip dialog + Create Trip form; floating "Change photo" button on trip hero (hover desktop, always mobile); validates type/size, uploads to trip-heroes bucket, graceful failure handling
+* [x] Date range picker — replace two separate date inputs with single inline calendar; two months on desktop, one on mobile; nights counter; react-day-picker v10 mode="range"
 * [ ] Polish Hero section
 * [ ] Add weather widget (placeholder — no API yet)
 * [x] Add Trip Readiness widget to Overview tab

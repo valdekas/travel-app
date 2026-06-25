@@ -7,6 +7,7 @@ import { getDestinationImage } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { uploadCustomHeroImage, validateHeroImageFile } from '@/lib/utils/trip-hero-image'
 import { PlacesAutocomplete } from '@/components/ui/places-autocomplete'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -191,15 +192,14 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
             <Label>Country</Label>
             <Input value={form.country} onChange={e => set('country', e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Start Date</Label>
-              <Input type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>End Date</Label>
-              <Input type="date" value={form.end_date} onChange={e => set('end_date', e.target.value)} />
-            </div>
+          <div className="space-y-1.5">
+            <Label>Travel Dates</Label>
+            <DateRangePicker
+              startDate={form.start_date || null}
+              endDate={form.end_date || null}
+              onChange={(start, end) => { set('start_date', start); set('end_date', end) }}
+              numberOfMonths={1}
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
