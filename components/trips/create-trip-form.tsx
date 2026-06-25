@@ -98,10 +98,9 @@ export function CreateTripForm() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      const cover = form.cover_photo ||
-        getCityOrCountryImage(form.city) ||
-        getDestinationImage({ name: form.name, country: form.country }) ||
-        null
+      // Only use a URL the user explicitly pasted; device file is uploaded after INSERT;
+      // background fetch-hero handles Google Places → Pexels — no static fallback here.
+      const cover = form.cover_photo || null
 
       const { data, error } = await supabase.from('trips').insert({
         user_id:      user.id,

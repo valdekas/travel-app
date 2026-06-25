@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { Trip } from '@/lib/types'
-import { daysUntil, formatDate, getDestinationImage, getCityOrCountryImage, getTripStatusColor, getEffectiveStatus } from '@/lib/utils'
+import { daysUntil, formatDate, getTripStatusColor, getEffectiveStatus } from '@/lib/utils'
 import { validateHeroImageFile, uploadCustomHeroImage } from '@/lib/utils/trip-hero-image'
 import { FlagImg } from '@/components/ui/flag-img'
 import { Button } from '@/components/ui/button'
@@ -48,8 +48,8 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
   const [uploading, setUploading] = useState(false)
 
   const days = daysUntil(trip.start_date)
-  const [imgSrc, setImgSrc] = useState(getDestinationImage(trip))
-  const [imgError, setImgError] = useState(false)
+  const [imgSrc, setImgSrc] = useState(trip.cover_photo || '')
+  const [imgError, setImgError] = useState(!trip.cover_photo)
 
   const countdownBg =
     days === null || days < 0 ? 'bg-black/45' :
@@ -126,11 +126,9 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
 
   async function handlePhotoReset() {
     await supabase.from('trips').update({ cover_photo: null }).eq('id', trip.id)
-    const auto = getCityOrCountryImage(trip.city ?? trip.country ?? '') ||
-      'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1200&q=80'
-    setImgSrc(auto)
-    setImgError(false)
-    toast.success('Photo reset to destination image')
+    setImgSrc('')
+    setImgError(true)
+    toast.success('Cover photo removed')
     closePhotoDialog()
     router.refresh()
   }
@@ -164,39 +162,50 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
                 onError={() => setImgError(true)}
               />
             ) : (
-              /* Gradient placeholder for trips with no/broken cover photo */
-              <div className="absolute inset-0 bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900">
+              /* Gradient placeholder — shown when cover_photo is null or fails to load */
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-blue-900 to-slate-900">
                 <div
                   className="absolute inset-0"
                   style={{
                     backgroundImage: [
-                      'radial-gradient(ellipse at 28% 38%, rgba(99,102,241,0.38) 0%, transparent 52%)',
-                      'radial-gradient(ellipse at 72% 62%, rgba(168,85,247,0.28) 0%, transparent 52%)',
+                      'radial-gradient(ellipse at 25% 35%, rgba(99,102,241,0.45) 0%, transparent 55%)',
+                      'radial-gradient(ellipse at 75% 65%, rgba(56,189,248,0.20) 0%, transparent 50%)',
+                      'radial-gradient(ellipse at 60% 20%, rgba(168,85,247,0.20) 0%, transparent 45%)',
                     ].join(','),
                   }}
                 />
+                {/* Destination info — centered in the gradient area */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 pb-4">
+                  <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center backdrop-blur-sm">
+                    <span className="text-2xl font-bold text-white/75 leading-none select-none">
+                      {(trip.city || trip.country || trip.name)?.[0]?.toUpperCase() ?? '✈'}
+                    </span>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-white/85 text-base font-semibold leading-snug">
+                      {trip.city ?? trip.country}
+                    </p>
+                    {trip.city && trip.country && (
+                      <p className="text-white/45 text-xs mt-0.5">{trip.country}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setPhotoOpen(true)}
+                    className="flex items-center gap-1.5 mt-1 text-white/50 hover:text-white/85 transition-colors text-xs font-medium border border-white/15 hover:border-white/35 rounded-full px-3 py-1.5 bg-white/5 hover:bg-white/10"
+                  >
+                    <Camera className="h-3 w-3" />
+                    Add cover photo
+                  </button>
+                </div>
               </div>
             )}
 
             {/* Gradient overlays */}
             <div className={cn(
               'absolute inset-0 bg-gradient-to-t to-transparent',
-              imgError ? 'from-black/70 via-black/5' : 'from-black/85 via-black/20 to-black/10',
+              imgError ? 'from-black/60 via-black/0' : 'from-black/85 via-black/20 to-black/10',
             )} />
             <div className="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent" />
-
-            {/* "Add cover photo" invite — only visible on gradient placeholder */}
-            {imgError && (
-              <button
-                onClick={() => setPhotoOpen(true)}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[70%] flex flex-col items-center gap-2 text-white/60 hover:text-white/90 transition-colors"
-              >
-                <div className="w-10 h-10 rounded-full border border-white/20 hover:border-white/50 flex items-center justify-center bg-white/10 hover:bg-white/20 transition-all">
-                  <Camera className="h-4 w-4" />
-                </div>
-                <span className="text-xs font-medium tracking-wide">Add cover photo</span>
-              </button>
-            )}
 
             {/* Change photo — always on mobile, hover on desktop */}
             <button

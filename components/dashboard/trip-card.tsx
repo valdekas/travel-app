@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Trip } from '@/lib/types'
-import { daysUntil, formatDate, tripDuration, getDestinationImage, getCityOrCountryImage } from '@/lib/utils'
+import { daysUntil, formatDate, tripDuration } from '@/lib/utils'
 import { FlagImg } from '@/components/ui/flag-img'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -31,11 +31,8 @@ export function TripCard({ trip }: TripCardProps) {
   const days = daysUntil(trip.start_date)
   const duration = tripDuration(trip.start_date, trip.end_date)
 
-  // Three-level fallback: cover_photo/auto-url → country image → global fallback
-  const primarySrc  = getDestinationImage(trip)
-  const countrySrc  = getCityOrCountryImage(trip.country ?? '')
-  const fallbackSrc = 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1200&q=80'
-  const [imgSrc, setImgSrc] = useState(primarySrc)
+  const [imgSrc, setImgSrc] = useState(trip.cover_photo || '')
+  const [showGradient, setShowGradient] = useState(!trip.cover_photo)
 
   const countdownColor =
     days === null || days < 0 ? 'bg-slate-800/60' :
@@ -66,18 +63,35 @@ export function TripCard({ trip }: TripCardProps) {
           transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
           className="relative overflow-hidden rounded-2xl h-52 cursor-pointer shadow-md shadow-slate-200/60 dark:shadow-black/20 hover:shadow-xl hover:shadow-slate-300/50 dark:hover:shadow-black/40 transition-shadow duration-300"
         >
-          {/* Background image — three-level fallback via React state */}
-          <Image
-            src={imgSrc}
-            alt={trip.name}
-            fill
-            sizes="(max-width: 640px) 100vw, 50vw"
-            className="object-cover transition-transform duration-500 ease-out group-hover/card:scale-[1.08]"
-            onError={() => {
-              // Cascade through fallbacks; no DB writes — Pexels URLs are permanent
-              setImgSrc(imgSrc !== countrySrc ? countrySrc : fallbackSrc)
-            }}
-          />
+          {/* Background: photo or gradient placeholder */}
+          {!showGradient ? (
+            <Image
+              src={imgSrc}
+              alt={trip.name}
+              fill
+              sizes="(max-width: 640px) 100vw, 50vw"
+              className="object-cover transition-transform duration-500 ease-out group-hover/card:scale-[1.08]"
+              onError={() => setShowGradient(true)}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-blue-900 to-slate-900">
+              <div
+                className="absolute inset-0"
+                style={{
+                  backgroundImage: [
+                    'radial-gradient(ellipse at 25% 40%, rgba(99,102,241,0.45) 0%, transparent 55%)',
+                    'radial-gradient(ellipse at 78% 65%, rgba(56,189,248,0.18) 0%, transparent 50%)',
+                  ].join(','),
+                }}
+              />
+              {/* Destination initial */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-5xl font-bold text-white/15 select-none">
+                  {(trip.city || trip.country)?.[0]?.toUpperCase() ?? '✈'}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Gradient overlays */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent transition-opacity duration-300" />

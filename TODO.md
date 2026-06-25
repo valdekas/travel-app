@@ -45,6 +45,7 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [x] Fix hero image storage: switched from broken server-side route (Google URLs return 403 from Node.js) to client-side download; then discovered CORS also blocks client-side fetch of Google URLs
 * [x] Replace Google Places hero images with Pexels API — permanent URLs, no CORS issues; fire-and-forget POST `/api/trips/pexels-hero` after trip creation; gradient placeholder for missing/broken images; `PEXELS_API_KEY` server-side only
 * [x] Google Places hero image via server-side Places Details API — migration 015 adds `place_id` to trips; `place_id` saved on autocomplete select; `/api/trips/fetch-hero` downloads photo server-side via `photo_reference` and uploads to Supabase Storage; Pexels used as fallback; old `/api/trips/hero` stub removed
+* [x] Fix hero image loading order — gradient placeholder shown immediately for new trips (no jarring Unsplash→real photo swap); cover_photo not pre-filled in INSERT; gradient redesigned (indigo/blue, destination initial + city label); trip cards use same gradient when cover_photo is null
 * [ ] Create `trip-heroes` Storage bucket in Supabase Dashboard (migration 013 never applied — manual step required)
 * [ ] Apply migration 015 (`place_id` column) in Supabase Dashboard or via CLI
 * [x] Custom hero image upload — Upload photo button in Edit Trip dialog + Create Trip form; floating "Change photo" button on trip hero (hover desktop, always mobile); validates type/size, uploads to trip-heroes bucket, graceful failure handling

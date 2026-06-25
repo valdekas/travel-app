@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-06-25 (Fix hero image loading order — gradient placeholder first, real photo after background fetch)
+
+### Changed — `components/trips/create-trip-form.tsx`, `components/trips/trip-detail-shell.tsx`, `components/dashboard/trip-card.tsx`
+
+**Problem:** New trips immediately showed a static Unsplash fallback image, which was then replaced by the Google/Pexels background fetch result 5–10s later — a jarring image swap.
+
+**Fix — no eager cover_photo on INSERT:**
+- `create-trip-form.tsx`: `cover` is now `form.cover_photo || null` — only a user-pasted URL is used immediately; `getCityOrCountryImage` / `getDestinationImage` fallbacks removed from the INSERT path. Background `fetch-hero` still runs unchanged.
+
+**Fix — gradient placeholder shown until real photo arrives:**
+- `trip-detail-shell.tsx`: `imgError` initialises to `!trip.cover_photo` — gradient shows immediately for new trips, not only after a load failure. `handlePhotoReset` sets gradient (`imgError=true`) instead of loading a static Unsplash URL.
+- Gradient redesigned: deep indigo→blue→slate with radial accents; destination initial badge + city/country label + "Add cover photo" CTA centred over it.
+- `trip-card.tsx`: `showGradient` initialises to `!trip.cover_photo`; replaces three-level image fallback chain. Gradient uses same indigo/blue palette with large destination initial. `getDestinationImage` / `getCityOrCountryImage` imports removed from both files.
+
+**UX result:** Create trip → gradient shown immediately (intentional, not broken) → refresh after 5–10s → real photo from Google Places (or Pexels fallback) appears. No swap on first load.
+
 ## 2026-06-25 (Hero images via Google Places Details API with Pexels fallback)
 
 ### Added — `supabase/migrations/015_trip_place_id.sql`, `app/api/trips/fetch-hero/route.ts`
