@@ -149,6 +149,7 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 
 # 🟡 Polish Before Release
 
+* [x] Landing page redesign — light theme (white/slate), Notion/Linear aesthetic; 7 sections: nav, hero w/ animated 3-panel preview, world map demo, features grid, interactive Tokyo demo, pricing, footer
 * [ ] Check all desktop pages
 * [ ] Check all mobile pages
 * [ ] Remove UI inconsistencies

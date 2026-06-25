@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-06-25 (Landing page redesign — light theme, Notion/Linear aesthetic)
+
+### Changed — `app/page.tsx` (full rewrite) + new `components/landing/`
+
+**Design direction:** White/`#FAFAFA` background, dark slate text, violet primary accent. Compact and purposeful — Notion/Linear aesthetic replacing the previous dark full-page design.
+
+**New sections (7 components under `components/landing/`):**
+
+- **`landing-nav.tsx`** — Sticky 64px header: "Travel Pro" logo, "Sign in" ghost button, "Get started free" violet CTA. Clean border-bottom, white bg/backdrop-blur.
+- **`landing-hero.tsx`** — Centered headline ("Plan trips. Remember adventures."), AI badge, subheadline, primary + secondary CTAs, trust text. Animated 3-panel app preview: browser-chrome mock with sidebar, auto-rotates every 3.8s between Dashboard / Itinerary / Budget panels with fade transitions and 3D perspective tilt. Framer Motion entrance animations.
+- **`landing-map.tsx`** — "Your world, beautifully mapped" using `react-simple-maps` in demo mode: visited countries (violet), planned (light violet), 4 flag markers; stats row below.
+- **`landing-features.tsx`** — "Everything in one workspace": 6 feature cards 3×2 grid (Places, Budget, Itinerary, Journal, Calendar, AI Suggestions), hover lift, New badge on AI Suggestions.
+- **`landing-demo.tsx`** — "See it in action": browser-chrome window with 4-tab interactive Tokyo demo (Overview / Places / Itinerary / Budget), fully static sample data, AnimatePresence tab transitions, "Create your own trip →" CTA.
+- **`landing-pricing.tsx`** — Two cards: Free (€0/forever, all features, violet CTA) and Pro (Coming Soon, waitlist email form with toast confirmation).
+- **`landing-footer.tsx`** — Minimal footer: brand, Privacy/Terms/Contact links, Sign in + Get started links.
+
+**All CTAs** link to `/auth/login`. Authenticated routes untouched.
+
 ## 2026-06-25 (Date range picker — replace two separate date inputs with single two-month calendar)
 
 ### Added — `components/ui/date-range-picker.tsx` (new reusable component)
