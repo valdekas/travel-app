@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-06-25 (Fix destination display name — use place.name instead of administrative area)
+
+### Changed — `components/ui/places-autocomplete.tsx`
+
+**Problem:** Selecting "Mallorca" (or any island/region/landmark) from autocomplete stored Google's administrative area name ("Balearic Islands") as the city, because `locality` is empty for non-city places and `administrative_area_level_2` contained the bureaucratic name.
+
+- `extractPlace()` now derives `city` using: `place.name` → `locality` → `administrative_area_level_2` → `administrative_area_level_1`
+- `place.name` is always the specific human-readable label shown in the dropdown — exactly what the user sees and expects to be stored
+- Country extraction is unchanged
+
 ## 2026-06-25 (Remove Pexels API — gradient placeholder instead of irrelevant fallback images)
 
 ### Removed

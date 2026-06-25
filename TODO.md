@@ -79,6 +79,7 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [x] Edit Place — pencil button per row, pre-filled modal, Google Places autocomplete, preserves coords when only editing notes/cost
 * [x] Mobile overflow menu (⋮) — Edit, Open in Maps, Delete
 * [x] AI Suggestions — ✨ button opens panel; category-first three-step flow (6 categories → optional area refinement → 15 city/area-specific results); Google Places autocomplete biased to trip coordinates; area pill with clear (×); skip option; area included in cache key; checkbox selection; bulk insert into locations table
+* [x] Fix destination display name — `extractPlace()` now uses `place.name` first (e.g. "Mallorca" not "Balearic Islands"); falls back to locality → admin_area_level_2 → admin_area_level_1
 * [ ] Better Place cards
 * [ ] Improve mobile layout
 

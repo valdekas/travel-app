@@ -63,6 +63,15 @@ function extractPlace(place: google.maps.places.PlaceResult): PlaceDetails {
   const get = (type: string, nameType: 'long_name' | 'short_name' = 'long_name') =>
     ac.find(c => c.types.includes(type))?.[nameType] ?? ''
 
+  // place.name is always the most specific human-readable label Google shows in the
+  // dropdown (e.g. "Mallorca", "Bali", "Eiffel Tower"). Administrative area components
+  // can override it with bureaucratic names the user never typed, so name comes first.
+  const city =
+    place.name ||
+    get('locality') ||
+    get('administrative_area_level_2') ||
+    get('administrative_area_level_1')
+
   return {
     name: place.name ?? '',
     address: place.formatted_address ?? '',
@@ -70,7 +79,7 @@ function extractPlace(place: google.maps.places.PlaceResult): PlaceDetails {
     lng: place.geometry?.location?.lng() ?? null,
     country: get('country'),
     countryCode: get('country', 'short_name'),
-    city: get('locality') || get('administrative_area_level_2') || get('sublocality_level_1'),
+    city,
     region: get('administrative_area_level_1'),
     googleMapsLink: place.url ?? '',
     placeId: place.place_id ?? '',
