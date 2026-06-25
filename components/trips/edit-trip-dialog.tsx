@@ -3,9 +3,10 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Trip, CURRENCY_OPTIONS } from '@/lib/types'
-import { getCityOrCountryImage, getDestinationImage } from '@/lib/utils'
+import { getDestinationImage } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { uploadCustomHeroImage, validateHeroImageFile } from '@/lib/utils/trip-hero-image'
+import { PlacesAutocomplete } from '@/components/ui/places-autocomplete'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,6 +28,7 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
 
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [fetchingDestImg, setFetchingDestImg] = useState(false)
   const [showUrlInput, setShowUrlInput] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null)
@@ -58,14 +60,38 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
     setOpen(next)
   }
 
-  function applyDestinationImage() {
-    const img =
-      getCityOrCountryImage(form.city) ||
-      getDestinationImage({ name: form.name, country: form.country })
-    set('cover_photo', img)
-    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl)
-    setFilePreviewUrl(null)
-    setSelectedFile(null)
+  async function applyDestinationImage() {
+    const placeId = form.place_id || trip.place_id
+    if (!placeId) {
+      toast.error('No destination image available — try uploading your own photo')
+      return
+    }
+    setFetchingDestImg(true)
+    try {
+      const res = await fetch('/api/trips/fetch-hero', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tripId:  trip.id,
+          placeId,
+          city:    form.city || null,
+          country: form.country || null,
+        }),
+      })
+      const data = await res.json()
+      if (data.url) {
+        set('cover_photo', data.url)
+        if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl)
+        setFilePreviewUrl(null)
+        setSelectedFile(null)
+      } else {
+        toast.error('Could not fetch destination image')
+      }
+    } catch {
+      toast.error('Could not fetch destination image')
+    } finally {
+      setFetchingDestImg(false)
+    }
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -277,14 +303,17 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
               )}
             </div>
 
-            {/* City input for existing trips */}
+            {/* City / destination — autocomplete updates place_id for hero fetch */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">City (for destination image)</Label>
-              <Input
-                placeholder="e.g. Chicago, Barcelona, Tokyo…"
+              <Label className="text-xs text-muted-foreground">Destination (updates hero image source)</Label>
+              <PlacesAutocomplete
                 value={form.city}
-                onChange={e => set('city', e.target.value)}
-                className="h-8 text-sm"
+                onChange={v => set('city', v)}
+                onPlaceSelect={p => {
+                  set('city', p.city || p.name)
+                  set('place_id', p.placeId)
+                }}
+                placeholder="Search city or landmark…"
               />
             </div>
 
@@ -313,8 +342,12 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
                 size="sm"
                 className="gap-1.5 text-xs"
                 onClick={applyDestinationImage}
+                disabled={fetchingDestImg}
               >
-                <Wand2 className="h-3 w-3" /> Use destination image
+                {fetchingDestImg
+                  ? <><Loader2 className="h-3 w-3 animate-spin" /> Fetching…</>
+                  : <><Wand2 className="h-3 w-3" /> Use destination image</>
+                }
               </Button>
               <Button
                 type="button"

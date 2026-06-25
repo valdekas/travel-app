@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-06-25 (Fix hero image editing — 4 issues in edit dialog and change-photo flow)
+
+### Changed — `components/trips/edit-trip-dialog.tsx`, `components/trips/trip-detail-shell.tsx`
+
+**Fix 1 — "Use destination image" now calls `/api/trips/fetch-hero` instead of static lookup:**
+- `applyDestinationImage` is now async; uses `form.place_id || trip.place_id` to call `/api/trips/fetch-hero`
+- If no `place_id` stored on the trip: shows toast "No destination image available — try uploading your own"
+- On success: sets `form.cover_photo` to the real Google/Pexels URL and clears any pending file selection
+- Button shows `Loader2` spinner + "Fetching…" while in-flight (`fetchingDestImg` state)
+- Removed `getCityOrCountryImage` import — static Unsplash lookup no longer used here
+
+**Fix 2 — "Reset to auto" in change-photo dialog now re-fetches a real photo:**
+- `handlePhotoReset` NULLs `cover_photo` in DB and shows gradient immediately (same as before for no-place_id trips)
+- If `trip.place_id` exists: fires fire-and-forget `fetch('/api/trips/fetch-hero', ...)` after closing dialog
+- On resolve with a URL: updates `imgSrc` + clears `imgError` in-place without a full page reload
+- Toast changes to "Cover photo removed — fetching destination image…" when background fetch is triggered
+
+**Fix 3 — Change-photo dialog preview no longer shows wrong Unsplash fallback:**
+- Preview renders `<img>` only when `heroPreviewUrl` or `(imgSrc && !imgError)` — i.e. a real URL exists
+- Otherwise renders the matching indigo/blue gradient placeholder with destination initial
+- Removes the `onError` Unsplash fallback that was masking the gradient state
+
+**Fix 4 — Destination in edit dialog updates `place_id` via PlacesAutocomplete:**
+- Plain `<Input>` for City in the Cover Image section replaced with `PlacesAutocomplete`
+- `onPlaceSelect` callback sets both `city` and `place_id` from the autocomplete result
+- `place_id` is already included in the UPDATE payload — no extra change needed there
+
 ## 2026-06-25 (Fix hero image loading order — gradient placeholder first, real photo after background fetch)
 
 ### Changed — `components/trips/create-trip-form.tsx`, `components/trips/trip-detail-shell.tsx`, `components/dashboard/trip-card.tsx`

@@ -128,9 +128,33 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
     await supabase.from('trips').update({ cover_photo: null }).eq('id', trip.id)
     setImgSrc('')
     setImgError(true)
-    toast.success('Cover photo removed')
     closePhotoDialog()
-    router.refresh()
+
+    if (!trip.place_id) {
+      toast.success('Cover photo removed')
+      return
+    }
+
+    // Has a place_id — fetch a real photo in the background
+    toast.success('Cover photo removed — fetching destination image…')
+    fetch('/api/trips/fetch-hero', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tripId:  trip.id,
+        placeId: trip.place_id,
+        city:    trip.city ?? null,
+        country: trip.country ?? null,
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.url) {
+          setImgSrc(data.url)
+          setImgError(false)
+        }
+      })
+      .catch(() => {})
   }
 
   return (
@@ -330,15 +354,31 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
           <div className="space-y-4 mt-1">
             {/* Preview */}
             <div className="relative rounded-xl overflow-hidden h-36 bg-slate-100 dark:bg-slate-800">
-              <img
-                src={heroPreviewUrl || imgSrc}
-                alt="Cover preview"
-                className="w-full h-full object-cover"
-                onError={e => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1200&q=80' }}
-              />
-              {heroFile && (
-                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-4">
-                  <p className="text-white text-[11px] font-medium truncate">{heroFile.name}</p>
+              {(heroPreviewUrl || (imgSrc && !imgError)) ? (
+                <>
+                  <img
+                    src={heroPreviewUrl || imgSrc}
+                    alt="Cover preview"
+                    className="w-full h-full object-cover"
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                  {heroFile && (
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-4">
+                      <p className="text-white text-[11px] font-medium truncate">{heroFile.name}</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-blue-900 to-slate-900 flex items-center justify-center">
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      backgroundImage: 'radial-gradient(ellipse at 30% 40%, rgba(99,102,241,0.4) 0%, transparent 55%)',
+                    }}
+                  />
+                  <span className="relative text-3xl font-bold text-white/20 select-none">
+                    {(trip.city || trip.country)?.[0]?.toUpperCase() ?? '✈'}
+                  </span>
                 </div>
               )}
             </div>
