@@ -28,8 +28,8 @@ const SLIDES = [
     label: '🇺🇸 Los Angeles',
   },
   {
-    src: 'https://images.unsplash.com/photo-1567967455389-e432b76f53c3?w=1920&q=80',
-    label: '🇮🇹 Amalfi Coast',
+    src: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=1920&q=80',
+    label: '🇦🇪 Dubai',
   },
 ]
 
