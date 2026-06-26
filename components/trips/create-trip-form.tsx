@@ -29,7 +29,11 @@ interface DestRef {
   city: string
 }
 
-export function CreateTripForm() {
+interface CreateTripFormProps {
+  defaultCurrency?: string
+}
+
+export function CreateTripForm({ defaultCurrency = 'EUR' }: CreateTripFormProps) {
   const router = useRouter()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -46,7 +50,7 @@ export function CreateTripForm() {
     start_date: '',
     end_date: '',
     budget: '',
-    currency: 'EUR',
+    currency: defaultCurrency,
     notes: '',
     cover_photo: '',
     status: 'planning' as const,

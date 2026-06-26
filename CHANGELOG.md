@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-06-26 (Settings: Currency preference applied to new trips)
+
+### Changed — `app/(dashboard)/trips/new/page.tsx`
+Converted from sync to async server component. Fetches `user_settings.currency` for the current user and passes it as `defaultCurrency` to `CreateTripForm`. Falls back to `'EUR'` if no setting exists.
+
+### Changed — `components/trips/create-trip-form.tsx`
+Added `CreateTripFormProps { defaultCurrency?: string }`. The `currency` field in the form's initial `useState` now uses `defaultCurrency` (default `'EUR'`) instead of a hardcoded string. Existing trips are unaffected — they always display their own saved `trip.currency`.
+
+---
+
 ## 2026-06-26 (Suggestions: Generation reliability fixes)
 
 ### Changed — `app/api/suggestions/generate/route.ts`
