@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-06-26 (Landing phone showcase — fix gap and scroll-reset bug)
+
+### Fixed — `components/landing/LandingPhoneShowcase.tsx`
+
+**Root cause:** Section used a `4 × 55vh = 220vh` scroll-driven sticky container. This caused two bugs:
+1. **Large gap** — 120vh of invisible scroll space after the sticky content visually finished.
+2. **Scroll-reset bug** — `useMotionValueEvent` on `scrollYProgress` overrode the manually clicked `activeIndex` on every scroll event.
+
+**Fix:** Replaced the scroll-driven sticky approach with a normal `py-24` section and a simple auto-advancing carousel:
+- `setInterval` at 3 500 ms cycles through all 4 features automatically
+- Clicking a feature sets that index **and** resets the interval (via a `tick` counter dependency) so the selected screen stays visible for a full 3.5 s before advancing
+- No scroll position involvement — clicking always wins, no snap-back
+- Added progress dots below the feature list as a visual affordance
+
 ## 2026-06-25 (Landing page redesign — light theme, Notion/Linear aesthetic)
 
 ### Changed — `app/page.tsx` (full rewrite) + new `components/landing/`

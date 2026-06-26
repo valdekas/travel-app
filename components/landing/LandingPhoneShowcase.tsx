@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { motion, useScroll, useMotionValueEvent } from 'framer-motion'
+import { useState, useEffect, useCallback } from 'react'
+import { motion } from 'framer-motion'
 import {
   BookOpen,
   ListChecks,
@@ -126,106 +126,117 @@ const SCREENS = [
   </div>,
 ]
 
+const INTERVAL_MS = 3500
+
 export function LandingPhoneShowcase() {
-  const containerRef = useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [tick, setTick] = useState(0)
 
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ['start start', 'end end'],
-  })
+  // Auto-advance; restarted (via tick) whenever user clicks
+  useEffect(() => {
+    const id = setInterval(() => {
+      setActiveIndex(i => (i + 1) % FEATURES.length)
+    }, INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [tick])
 
-  useMotionValueEvent(scrollYProgress, 'change', (latest) => {
-    const index = Math.min(
-      FEATURES.length - 1,
-      Math.floor(latest * FEATURES.length),
-    )
-    setActiveIndex(index)
-  })
+  const handleClick = useCallback((i: number) => {
+    setActiveIndex(i)
+    setTick(t => t + 1) // restart the interval so selected item shows for a full 3.5s
+  }, [])
 
   return (
-    <section ref={containerRef} className="relative bg-slate-950" style={{ height: `${FEATURES.length * 55}vh` }}>
-      {/* Sticky wrapper */}
-      <div className="sticky top-0 h-screen overflow-hidden flex items-center">
-        <div className="max-w-6xl mx-auto px-6 w-full">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            {/* Left: feature list */}
-            <div className="space-y-8">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-              >
-                <div className="inline-flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-semibold uppercase tracking-widest rounded-full px-4 py-1.5 mb-4">
-                  Features
-                </div>
-                <h2 className="text-4xl sm:text-5xl font-bold text-white tracking-tight">
-                  Everything you need on the go
-                </h2>
-              </motion.div>
+    <section className="bg-slate-950 py-24">
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="grid lg:grid-cols-2 gap-12 items-center">
+          {/* Left: feature list */}
+          <div className="space-y-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+            >
+              <div className="inline-flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-semibold uppercase tracking-widest rounded-full px-4 py-1.5 mb-4">
+                Features
+              </div>
+              <h2 className="text-4xl sm:text-5xl font-bold text-white tracking-tight">
+                Everything you need on the go
+              </h2>
+            </motion.div>
 
-              <div className="space-y-4">
-                {FEATURES.map((f, i) => {
-                  const Icon = f.icon
-                  const isActive = i === activeIndex
-                  return (
-                    <button
-                      key={f.title}
-                      onClick={() => setActiveIndex(i)}
-                      className={`w-full text-left flex items-start gap-4 p-3 rounded-xl transition-all duration-300 ${
-                        isActive ? 'opacity-100' : 'opacity-40'
-                      }`}
-                    >
-                      <div className={`p-2.5 rounded-xl shrink-0 transition-colors ${isActive ? f.bg : 'bg-slate-800/50'}`}>
-                        <Icon className={`h-5 w-5 ${isActive ? f.color : 'text-slate-500'}`} />
-                      </div>
-                      <div>
-                        <div className={`font-semibold ${isActive ? 'text-white' : 'text-slate-400'}`}>{f.title}</div>
-                        <div className="text-slate-400 text-sm mt-0.5 leading-relaxed">{f.desc}</div>
-                      </div>
-                    </button>
-                  )
-                })}
+            <div className="space-y-2">
+              {FEATURES.map((f, i) => {
+                const Icon = f.icon
+                const isActive = i === activeIndex
+                return (
+                  <button
+                    key={f.title}
+                    onClick={() => handleClick(i)}
+                    className={`w-full text-left flex items-start gap-4 p-3 rounded-xl transition-all duration-300 ${
+                      isActive ? 'opacity-100' : 'opacity-40 hover:opacity-60'
+                    }`}
+                  >
+                    <div className={`p-2.5 rounded-xl shrink-0 transition-colors ${isActive ? f.bg : 'bg-slate-800/50'}`}>
+                      <Icon className={`h-5 w-5 ${isActive ? f.color : 'text-slate-500'}`} />
+                    </div>
+                    <div>
+                      <div className={`font-semibold ${isActive ? 'text-white' : 'text-slate-400'}`}>{f.title}</div>
+                      <div className="text-slate-400 text-sm mt-0.5 leading-relaxed">{f.desc}</div>
+                    </div>
+                  </button>
+                )
+              })}
+
+              {/* Progress dots */}
+              <div className="flex gap-1.5 pt-2 pl-3">
+                {FEATURES.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleClick(i)}
+                    className={`h-1 rounded-full transition-all duration-300 ${
+                      i === activeIndex ? 'w-6 bg-violet-400' : 'w-1 bg-slate-600 hover:bg-slate-500'
+                    }`}
+                  />
+                ))}
               </div>
             </div>
+          </div>
 
-            {/* Right: phone mockup */}
-            <div className="flex justify-center lg:justify-end">
-              <div className="relative w-[260px]">
-                {/* Phone frame */}
-                <div className="relative bg-slate-800 rounded-[36px] p-3 border-2 border-slate-700 shadow-2xl shadow-black/60">
-                  {/* Notch */}
-                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-5 bg-slate-950 rounded-b-xl z-10" />
-                  {/* Screen */}
-                  <div className="bg-slate-900 rounded-[28px] overflow-hidden min-h-[420px]">
-                    {/* Status bar */}
-                    <div className="flex items-center justify-between px-5 pt-8 pb-2">
-                      <span className="text-white text-xs font-semibold">9:41</span>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-2 border border-white/60 rounded-sm relative">
-                          <div className="absolute inset-0.5 right-auto w-1.5 bg-white/60 rounded-sm" />
-                        </div>
+          {/* Right: phone mockup */}
+          <div className="flex justify-center lg:justify-end">
+            <div className="relative w-[260px]">
+              {/* Phone frame */}
+              <div className="relative bg-slate-800 rounded-[36px] p-3 border-2 border-slate-700 shadow-2xl shadow-black/60">
+                {/* Notch */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-5 bg-slate-950 rounded-b-xl z-10" />
+                {/* Screen */}
+                <div className="bg-slate-900 rounded-[28px] overflow-hidden min-h-[420px]">
+                  {/* Status bar */}
+                  <div className="flex items-center justify-between px-5 pt-8 pb-2">
+                    <span className="text-white text-xs font-semibold">9:41</span>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-2 border border-white/60 rounded-sm relative">
+                        <div className="absolute inset-0.5 right-auto w-1.5 bg-white/60 rounded-sm" />
                       </div>
                     </div>
+                  </div>
 
-                    {/* Screen content */}
-                    <div className="relative overflow-hidden">
-                      <motion.div
-                        key={activeIndex}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        {SCREENS[activeIndex]}
-                      </motion.div>
-                    </div>
+                  {/* Screen content */}
+                  <div className="relative overflow-hidden">
+                    <motion.div
+                      key={activeIndex}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {SCREENS[activeIndex]}
+                    </motion.div>
                   </div>
                 </div>
-
-                {/* Glow */}
-                <div className="absolute -inset-8 -z-10 bg-violet-600/10 rounded-full blur-3xl" />
               </div>
+
+              {/* Glow */}
+              <div className="absolute -inset-8 -z-10 bg-violet-600/10 rounded-full blur-3xl" />
             </div>
           </div>
         </div>
