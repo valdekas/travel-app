@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-06-26 (Suggestions: Filter to enriched-only cards)
+
+### Changed — `components/trips/suggestions-content.tsx`
+- Cards are now filtered to only show suggestions where both `photo_url` and `rating` are non-null (TripAdvisor enriched)
+- Non-enriched suggestions are hidden entirely from the UI; DB/generation logic unchanged
+- Tab count badges reflect visible (enriched) count per category, not raw stored count
+- Category tabs with 0 enriched suggestions are grayed out and disabled
+- All-tab count shows total enriched suggestions
+- Empty state distinguishes "no suggestions yet" from "enrichment in progress"
+
+---
+
 ## 2026-06-26 (Suggestions: Replace Foursquare with TripAdvisor Content API)
 
 ### Removed

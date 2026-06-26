@@ -306,6 +306,9 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
 
   useEffect(() => { setSuggestions(initialSuggestions) }, [initialSuggestions])
 
+  // Only show suggestions that have been enriched with TripAdvisor data
+  const visibleSuggestions = suggestions.filter(s => s.photo_url && s.rating != null)
+
   // Poll every 5s while generating
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null)
   const pollAttemptsRef = useRef(0)
@@ -411,7 +414,7 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
   const destination = trip.city ? `${trip.city}, ${trip.country}` : trip.country
 
   const byCategory = new Map<string, TripSuggestion[]>()
-  for (const s of suggestions) {
+  for (const s of visibleSuggestions) {
     const arr = byCategory.get(s.category) ?? []
     arr.push(s)
     byCategory.set(s.category, arr)
@@ -446,28 +449,33 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
             {TABS.map(tab => {
               const isActive = activeTab === tab.key
               const count = tab.key === 'All'
-                ? suggestions.length
+                ? visibleSuggestions.length
                 : (byCategory.get(tab.key as SuggestionCategory) ?? []).length
+              const isEmpty = !generating && tab.key !== 'All' && count === 0
               return (
                 <button
                   key={tab.key}
-                  onClick={() => setActiveTab(tab.key as ActiveTab)}
-                  disabled={generating}
+                  onClick={() => !isEmpty && setActiveTab(tab.key as ActiveTab)}
+                  disabled={generating || isEmpty}
                   className={cn(
                     'flex-none flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-150',
                     isActive
                       ? 'bg-violet-600 text-white shadow-sm'
-                      : generating
+                      : generating || isEmpty
                       ? 'text-muted-foreground/40 bg-muted/30 cursor-not-allowed'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted',
                   )}
                 >
                   <span className="text-base leading-none">{tab.emoji}</span>
                   {tab.label}
-                  {!generating && count > 0 && (
+                  {!generating && (
                     <span className={cn(
                       'text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
-                      isActive ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground',
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : isEmpty
+                        ? 'bg-muted/50 text-muted-foreground/40'
+                        : 'bg-muted text-muted-foreground',
                     )}>
                       {count}
                     </span>
@@ -519,7 +527,7 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
                 <span className="text-xl" aria-hidden>{catMeta.emoji}</span>
                 <h2 className="text-base font-semibold">{catMeta.label}</h2>
                 <span className="text-xs text-muted-foreground">
-                  {items.length} suggestion{items.length !== 1 ? 's' : ''}
+                  {items.length} enriched suggestion{items.length !== 1 ? 's' : ''}
                 </span>
               </div>
               {items.length === 0 ? (
@@ -547,16 +555,19 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
         {/* ── All categories view ── */}
         {!generating && activeTab === 'All' && (
           <div className="space-y-10">
-            {suggestions.length === 0 && (
+            {visibleSuggestions.length === 0 && (
               <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
                 <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
                   <Sparkles className="h-7 w-7 text-muted-foreground/40" />
                 </div>
                 <div>
-                  <h2 className="font-semibold mb-1">No suggestions yet</h2>
+                  <h2 className="font-semibold mb-1">
+                    {suggestions.length === 0 ? 'No suggestions yet' : 'Enrichment in progress'}
+                  </h2>
                   <p className="text-sm text-muted-foreground max-w-xs">
-                    Suggestions are generated automatically for new trips.
-                    They may still be loading — try refreshing in a moment.
+                    {suggestions.length === 0
+                      ? 'Suggestions are generated automatically for new trips. They may still be loading — try refreshing in a moment.'
+                      : 'Venue details are being fetched. Check back shortly.'}
                   </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => router.refresh()}>
@@ -582,7 +593,7 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
                       onClick={() => setActiveTab(key as SuggestionCategory)}
                       className="ml-1 text-xs text-muted-foreground hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
                     >
-                      {items.length} suggestion{items.length !== 1 ? 's' : ''}
+                      {items.length} enriched
                     </button>
                   </div>
 
