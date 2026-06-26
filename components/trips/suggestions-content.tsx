@@ -216,74 +216,86 @@ function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding 
       </div>
 
       {/* Action row */}
-      <div className="px-3 pb-3 flex gap-1.5 flex-wrap">
+      <div className="px-3 pb-3 flex flex-wrap gap-1.5">
+        {/* Add-to actions */}
         {localPlaces ? (
-          <span className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg py-1.5 min-w-[80px]">
-            <Check className="h-3 w-3" /> In Places
+          <span className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg h-9 min-w-[80px]">
+            <Check className="h-3.5 w-3.5" /> In Places
           </span>
         ) : (
           <Button
             size="sm"
             variant="outline"
-            className="flex-1 h-8 text-xs gap-1 font-medium min-w-[80px]"
+            className="flex-1 h-9 text-xs gap-1.5 font-medium min-w-[80px]"
             disabled={adding}
             onClick={handleAddToPlaces}
           >
-            {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <MapPin className="h-3 w-3" />}
+            {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5" />}
             + Places
           </Button>
         )}
 
         {localItinerary ? (
-          <span className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40 rounded-lg py-1.5 min-w-[80px]">
-            <Check className="h-3 w-3" /> In Itinerary
+          <span className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40 rounded-lg h-9 min-w-[80px]">
+            <Check className="h-3.5 w-3.5" /> In Itinerary
           </span>
         ) : (
           <Button
             size="sm"
             variant="outline"
-            className="flex-1 h-8 text-xs gap-1 font-medium min-w-[80px]"
+            className="flex-1 h-9 text-xs gap-1.5 font-medium min-w-[80px]"
             disabled={adding}
             onClick={() => onOpenDayPicker({ ...s, added_to_places: localPlaces, added_to_itinerary: localItinerary })}
           >
-            <Calendar className="h-3 w-3" />
+            <Calendar className="h-3.5 w-3.5" />
             + Itinerary
           </Button>
         )}
 
-        {/* External links — only shown when TripAdvisor enrichment data exists */}
-        {s.google_maps_url && (
-          <a
-            href={s.google_maps_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="h-8 px-2.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted/50 transition-colors"
-            title="Open in Google Maps"
-          >
-            🗺 Maps
-          </a>
-        )}
-        {s.website && (
-          <a
-            href={s.website}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="h-8 px-2.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted/50 transition-colors"
-            title="Visit website"
-          >
-            <Globe className="h-3 w-3" /> Web
-          </a>
-        )}
-        {s.ta_location_id && (
-          <a
-            href={`https://www.tripadvisor.com/Location_Review-d${s.ta_location_id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="h-8 px-2.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted/50 transition-colors"
-            title="Open in TripAdvisor"
-          >
-            ✈️ TA
-          </a>
+        {/* Branded external links — grouped so they wrap together */}
+        {(s.google_maps_url || s.website || s.ta_location_id) && (
+          <div className="flex gap-1.5">
+            {s.google_maps_url && (
+              <a
+                href={s.google_maps_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open in Google Maps"
+                className="h-9 px-2.5 flex items-center gap-1.5 text-xs font-medium border border-border rounded-lg hover:bg-[#EA4335]/8 hover:border-[#EA4335]/40 transition-colors"
+              >
+                <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="#EA4335" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                </svg>
+                <span className="text-[#EA4335]">Maps</span>
+              </a>
+            )}
+
+            {s.website && (
+              <a
+                href={s.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Visit website"
+                className="h-9 px-2.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground border border-border rounded-lg hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                <Globe className="h-3.5 w-3.5" />
+                Web
+              </a>
+            )}
+
+            {s.ta_location_id && (
+              <a
+                href={`https://www.tripadvisor.com/Location_Review-d${s.ta_location_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open in TripAdvisor"
+                className="h-9 px-2.5 flex items-center gap-1.5 text-xs font-medium border border-border rounded-lg hover:bg-[#34E0A1]/10 hover:border-[#34E0A1]/50 transition-colors"
+              >
+                <span className="text-sm leading-none" aria-hidden>🦉</span>
+                <span className="text-[#00AA6C] dark:text-[#34E0A1]">TripAdvisor</span>
+              </a>
+            )}
+          </div>
         )}
       </div>
     </div>
