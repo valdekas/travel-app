@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { SUGGESTION_CATEGORIES } from '@/lib/types'
+import { searchFoursquarePlace } from '@/lib/utils/foursquare'
 
 const CATEGORIES = SUGGESTION_CATEGORIES.map(c => c.key)
 
@@ -91,13 +92,13 @@ export async function POST(req: NextRequest) {
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-  // Generate all 6 categories in parallel
+  // Step 1: Generate all 6 categories in parallel via Claude
   const results = await Promise.all(
     CATEGORIES.map(cat => generateForCategory(anthropic, cat, fullDestination))
   )
 
-  // Build rows for insert
-  const rows: {
+  // Step 2: Flatten into base rows
+  type BaseRow = {
     trip_id: string
     user_id: string
     category: string
@@ -109,30 +110,56 @@ export async function POST(req: NextRequest) {
     must_try: string | null
     tip: string | null
     emoji: string | null
-  }[] = []
+  }
 
+  const baseRows: BaseRow[] = []
   CATEGORIES.forEach((cat, idx) => {
     for (const item of results[idx]) {
       if (!item.name) continue
-      rows.push({
-        trip_id:           tripId,
-        user_id:           user.id,
-        category:          cat,
-        name:              item.name,
-        description:       item.description ?? null,
-        why_visit:         item.whyVisit ?? null,
-        price_range:       item.priceRange ?? null,
-        best_time_to_visit:item.bestTimeToVisit ?? null,
-        must_try:          item.mustTry ?? null,
-        tip:               item.tip ?? null,
-        emoji:             item.emoji ?? null,
+      baseRows.push({
+        trip_id:            tripId,
+        user_id:            user.id,
+        category:           cat,
+        name:               item.name,
+        description:        item.description ?? null,
+        why_visit:          item.whyVisit ?? null,
+        price_range:        item.priceRange ?? null,
+        best_time_to_visit: item.bestTimeToVisit ?? null,
+        must_try:           item.mustTry ?? null,
+        tip:                item.tip ?? null,
+        emoji:              item.emoji ?? null,
       })
     }
   })
 
-  if (rows.length === 0) {
+  if (baseRows.length === 0) {
     return NextResponse.json({ success: false, count: 0 })
   }
+
+  // Step 3: Enrich each suggestion with Foursquare data in parallel (graceful degradation)
+  const enriched = await Promise.allSettled(
+    baseRows.map(async (row) => {
+      const fsq = await searchFoursquarePlace(row.name, city ?? '', country ?? '')
+      return {
+        ...row,
+        fsq_place_id:    fsq?.fsq_id    ?? null,
+        address:         fsq?.address   ?? null,
+        lat:             fsq?.lat       ?? null,
+        lng:             fsq?.lng       ?? null,
+        rating:          fsq?.rating    ?? null,
+        reviews_count:   null as number | null, // FSQ free tier doesn't expose review count
+        photo_url:       fsq?.photo_url ?? null,
+        google_maps_url: fsq?.google_maps_url ?? null,
+        website:         fsq?.website   ?? null,
+        phone:           fsq?.phone     ?? null,
+        hours:           fsq?.hours     ?? null,
+      }
+    })
+  )
+
+  const rows = enriched.map((result, i) =>
+    result.status === 'fulfilled' ? result.value : baseRows[i]
+  )
 
   const { error } = await supabase.from('trip_suggestions').insert(rows)
   if (error) {

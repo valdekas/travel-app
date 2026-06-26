@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { Sparkles, MapPin, Calendar, Check, Loader2, Clock, Tag, ChevronRight, ChevronDown } from 'lucide-react'
+import { Sparkles, MapPin, Calendar, Check, Loader2, Clock, Tag, ChevronRight, ChevronDown, Globe, Star } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { cn } from '@/lib/utils'
 
@@ -100,9 +100,20 @@ interface CardProps {
   adding: boolean
 }
 
+// Category gradient backgrounds for photo placeholder
+const categoryGradients: Record<string, string> = {
+  Restaurants:      'from-orange-400 to-rose-500',
+  Attractions:      'from-violet-400 to-indigo-500',
+  Viewpoints:       'from-sky-400 to-blue-500',
+  Museums:          'from-amber-400 to-orange-500',
+  Bars:             'from-purple-500 to-pink-500',
+  'Parks & Nature': 'from-emerald-400 to-teal-500',
+}
+
 function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding }: CardProps) {
   const [localPlaces, setLocalPlaces] = useState(s.added_to_places)
   const [localItinerary, setLocalItinerary] = useState(s.added_to_itinerary)
+  const [photoError, setPhotoError] = useState(false)
 
   useEffect(() => { setLocalPlaces(s.added_to_places) }, [s.added_to_places])
   useEffect(() => { setLocalItinerary(s.added_to_itinerary) }, [s.added_to_itinerary])
@@ -112,42 +123,74 @@ function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding 
     await onAddToPlaces({ ...s, added_to_places: localPlaces, added_to_itinerary: localItinerary })
   }
 
+  const showPhoto = s.photo_url && !photoError
+  const gradient = categoryGradients[s.category] ?? 'from-slate-400 to-slate-600'
+
   return (
     <div className={cn(
       'group flex flex-col bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-md hover:border-border/80',
       (localPlaces && localItinerary) && 'opacity-75',
     )}>
-      <div className="p-4 pb-3 flex-1 flex flex-col gap-2.5">
-        <div className="flex items-start gap-2.5">
-          <span className="text-2xl leading-none mt-0.5 flex-shrink-0" aria-hidden>
-            {s.emoji || '📍'}
-          </span>
-          <div className="min-w-0">
-            <h3 className="font-semibold text-sm leading-snug text-foreground line-clamp-2">{s.name}</h3>
-            {s.price_range && (
-              <span className={cn(
-                'inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
-                priceColors[s.price_range] ?? 'bg-slate-100 text-slate-600',
-              )}>
-                {s.price_range}
-              </span>
-            )}
+      {/* Hero: photo or gradient placeholder */}
+      <div className="relative h-36 shrink-0 overflow-hidden">
+        {showPhoto ? (
+          <img
+            src={s.photo_url!}
+            alt={s.name}
+            className="w-full h-full object-cover"
+            onError={() => setPhotoError(true)}
+          />
+        ) : (
+          <div className={cn('w-full h-full bg-gradient-to-br flex items-center justify-center', gradient)}>
+            <span className="text-5xl opacity-80" aria-hidden>{s.emoji || '📍'}</span>
           </div>
+        )}
+        {/* Price badge overlay */}
+        {s.price_range && (
+          <span className={cn(
+            'absolute top-2 right-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full backdrop-blur-sm',
+            priceColors[s.price_range] ?? 'bg-slate-100 text-slate-600',
+          )}>
+            {s.price_range}
+          </span>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="p-3 pb-2 flex-1 flex flex-col gap-2">
+        {/* Name + emoji (no photo case) */}
+        <div className="flex items-start gap-2">
+          {!showPhoto && (
+            <span className="text-lg leading-none mt-0.5 flex-shrink-0" aria-hidden>{s.emoji || '📍'}</span>
+          )}
+          <h3 className="font-semibold text-sm leading-snug text-foreground line-clamp-2 flex-1">{s.name}</h3>
         </div>
 
+        {/* Rating */}
+        {s.rating != null && (
+          <div className="flex items-center gap-1.5">
+            <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
+            <span className="text-xs font-semibold text-foreground">{s.rating}/10</span>
+          </div>
+        )}
+
+        {/* Address */}
+        {s.address && (
+          <p className="flex items-start gap-1 text-[11px] text-muted-foreground leading-snug">
+            <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
+            <span className="line-clamp-1">{s.address}</span>
+          </p>
+        )}
+
+        {/* Description */}
         {s.description && (
-          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
             {s.description}
           </p>
         )}
 
-        {s.why_visit && (
-          <p className="text-xs text-foreground/80 leading-relaxed line-clamp-2 italic">
-            &ldquo;{s.why_visit}&rdquo;
-          </p>
-        )}
-
-        <div className="flex flex-wrap gap-2 mt-auto">
+        {/* Meta chips */}
+        <div className="flex flex-wrap gap-1.5 mt-auto">
           {s.best_time_to_visit && (
             <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
               <Clock className="h-3 w-3" />{s.best_time_to_visit}
@@ -167,16 +210,17 @@ function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding 
         )}
       </div>
 
-      <div className="px-3 pb-3 flex gap-2">
+      {/* Action row */}
+      <div className="px-3 pb-3 flex gap-1.5 flex-wrap">
         {localPlaces ? (
-          <span className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg py-1.5">
+          <span className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg py-1.5 min-w-[80px]">
             <Check className="h-3 w-3" /> In Places
           </span>
         ) : (
           <Button
             size="sm"
             variant="outline"
-            className="flex-1 h-8 text-xs gap-1 font-medium"
+            className="flex-1 h-8 text-xs gap-1 font-medium min-w-[80px]"
             disabled={adding}
             onClick={handleAddToPlaces}
           >
@@ -186,20 +230,44 @@ function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding 
         )}
 
         {localItinerary ? (
-          <span className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40 rounded-lg py-1.5">
+          <span className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40 rounded-lg py-1.5 min-w-[80px]">
             <Check className="h-3 w-3" /> In Itinerary
           </span>
         ) : (
           <Button
             size="sm"
             variant="outline"
-            className="flex-1 h-8 text-xs gap-1 font-medium"
+            className="flex-1 h-8 text-xs gap-1 font-medium min-w-[80px]"
             disabled={adding}
             onClick={() => onOpenDayPicker({ ...s, added_to_places: localPlaces, added_to_itinerary: localItinerary })}
           >
             <Calendar className="h-3 w-3" />
             + Itinerary
           </Button>
+        )}
+
+        {/* External links — only shown when Foursquare data exists */}
+        {s.google_maps_url && (
+          <a
+            href={s.google_maps_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-8 px-2.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted/50 transition-colors"
+            title="Open in Google Maps"
+          >
+            🗺 Maps
+          </a>
+        )}
+        {s.website && (
+          <a
+            href={s.website}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-8 px-2.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted/50 transition-colors"
+            title="Visit website"
+          >
+            <Globe className="h-3 w-3" /> Web
+          </a>
         )}
       </div>
     </div>

@@ -334,6 +334,18 @@ export interface TripSuggestion {
   added_to_places: boolean
   added_to_itinerary: boolean
   created_at: string
+  // Foursquare enrichment fields (nullable — older suggestions may not have these)
+  fsq_place_id?: string | null
+  address?: string | null
+  lat?: number | null
+  lng?: number | null
+  rating?: number | null
+  reviews_count?: number | null
+  photo_url?: string | null
+  google_maps_url?: string | null
+  website?: string | null
+  phone?: string | null
+  hours?: string | null
 }
 
 export const SUGGESTION_CATEGORIES = [

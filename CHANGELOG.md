@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-06-26 (Suggestions: Foursquare enrichment — photos, ratings, addresses)
+
+### Added — `lib/utils/foursquare.ts`
+New server-side utility. `searchFoursquarePlace(name, city, country)` calls Foursquare Places API v3:
+1. `GET /v3/places/search?query=…&near=…&fields=…` — returns top result
+2. If photos not in search response: `GET /v3/places/{fsq_id}/photos` — separate fetch
+Returns `FoursquarePlace | null` — null on any error or missing key (full graceful degradation).
+**FSQ free tier note:** 1 000 calls/day. 90 suggestions/trip × up to 2 calls each = ~180 calls/trip → ~5 trips/day before limit.
+
+### Added — `supabase/migrations/016_trip_suggestions_enrichment.sql`
+`ALTER TABLE trip_suggestions ADD COLUMN IF NOT EXISTS` for: `fsq_place_id`, `address`, `lat`, `lng`, `rating`, `reviews_count`, `photo_url`, `google_maps_url`, `website`, `phone`, `hours`.
+**⚠️ Must be applied manually in Supabase SQL editor.**
+
+### Changed — `app/api/suggestions/generate/route.ts`
+After Claude generates all 6 categories, each suggestion is enriched via `searchFoursquarePlace` with `Promise.allSettled` (failures fall back to AI-only data). Enrichment fields written to DB alongside existing AI fields.
+
+### Changed — `lib/types/index.ts`
+`TripSuggestion` interface extended with all 11 enrichment fields (all `| null | undefined` — backwards compatible with pre-enrichment rows).
+
+### Changed — `components/trips/suggestions-content.tsx`
+`SuggestionCard` redesigned:
+- **Hero area** (h-36): real Foursquare photo if available, falls back to category gradient + large emoji
+- **Rating row**: ⭐ `{rating}/10` when FSQ rating exists  
+- **Address line**: 📍 formatted address (1-line truncated)
+- **Footer actions**: existing `+ Places` / `+ Itinerary` + new `🗺 Maps` link (opens Google Maps) and `🌐 Web` link (opens website) — only shown when FSQ data present
+- Price badge moved to photo overlay (top-right corner)
+
 ## 2026-06-26 (Suggestions tab — 15 per category + category filter tabs)
 
 ### Changed — `app/api/suggestions/generate/route.ts`
