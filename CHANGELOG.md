@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-06-26 (Suggestions: Generation reliability fixes)
+
+### Changed — `app/api/suggestions/generate/route.ts`
+
+**FIX 1 — Error logging**: `generateForCategory` catch block now logs the error with category + destination context instead of silently swallowing it. Per-category stats logged after enrichment: `[Suggestions] {category}: generated N items, enriched M with TA data`.
+
+**FIX 2 — Per-category cache guard**: Replaced "skip if any suggestions exist" with "skip only if all 6 categories are present". Route now queries existing category names, computes `missingCategories`, and only generates + inserts the missing ones. A trip with a failed Restaurants run will now regenerate Restaurants on next visit to the Suggestions tab.
+
+**FIX 4 — Bars prompt**: Updated `CATEGORY_FOCUS.Bars` to emphasise hotel rooftop bars, well-known cocktail lounges, and venues indexed in major city guides (Time Out, Condé Nast). Explicitly discourages niche/underground bars that TA doesn't index.
+
+### Manual step required (FIX 3)
+Run in Supabase SQL editor to clear incomplete suggestions for the latest Chicago trip:
+```sql
+DELETE FROM trip_suggestions
+WHERE trip_id = (SELECT id FROM trips ORDER BY created_at DESC LIMIT 1);
+```
+Then visit the Suggestions tab — the page will auto-trigger regeneration for all 6 missing categories.
+
+---
+
 ## 2026-06-26 (Suggestions: Improve Claude prompt for TripAdvisor match rate)
 
 ### Changed — `app/api/suggestions/generate/route.ts`

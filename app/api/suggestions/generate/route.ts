@@ -11,7 +11,7 @@ const CATEGORY_FOCUS: Record<string, string> = {
   Attractions:      'Include UNESCO World Heritage sites, major landmarks, and must-see spots that appear in every travel guide for this city. Prioritise places with the highest visitor numbers and review counts.',
   Viewpoints:       'Include panoramic spots featured heavily in travel photography, Instagram, and city guide "best views" lists. These should be well-signposted, accessible locations known to most tourists.',
   Museums:          'Include the most visited and renowned cultural, art, and history institutions. Prioritise places with permanent world-class collections that draw international visitors.',
-  Bars:             'Include iconic cocktail bars, celebrated rooftop bars, historic pubs or taverns, and nightlife venues consistently mentioned in city nightlife guides and international bar award lists.',
+  Bars:             'Focus on hotel rooftop bars, well-known cocktail lounges, celebrated hotel bars, and bars that appear in major city guides like Time Out and Condé Nast. Include a mix of upscale hotel bars, iconic venues with a long history, and rooftop bars with strong review counts — avoid overly niche or underground venues that may not be indexed in major travel databases.',
   'Parks & Nature': 'Include the most famous parks, botanical gardens, waterfronts, and natural landmarks that are go-to recreational spots for both locals and tourists. Prioritise places with high foot traffic and many reviews.',
 }
 
@@ -70,7 +70,8 @@ async function generateForCategory(
     const clean = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/, '')
     const items = JSON.parse(clean)
     return Array.isArray(items) ? items.slice(0, 15) : []
-  } catch {
+  } catch (error) {
+    console.error(`[Suggestions] Failed to generate ${category} for ${destination}:`, error)
     return []
   }
 }
@@ -98,14 +99,20 @@ export async function POST(req: NextRequest) {
     .single()
   if (!trip) return NextResponse.json({ error: 'Trip not found' }, { status: 404 })
 
-  // Skip if suggestions already exist for this trip
-  const { count } = await supabase
+  // FIX 2: Check per-category — only regenerate categories that are missing entirely
+  const { data: existingRows } = await supabase
     .from('trip_suggestions')
-    .select('*', { count: 'exact', head: true })
+    .select('category')
     .eq('trip_id', tripId)
-  if (count && count > 0) {
-    return NextResponse.json({ success: true, count, cached: true })
+
+  const existingCategories = new Set((existingRows ?? []).map((r: { category: string }) => r.category))
+  const missingCategories = CATEGORIES.filter(cat => !existingCategories.has(cat))
+
+  if (missingCategories.length === 0) {
+    return NextResponse.json({ success: true, cached: true })
   }
+
+  console.log(`[Suggestions] Trip ${tripId} — generating missing categories:`, missingCategories)
 
   const destination = city ? `${city}, ${country}` : country
   const durationNote = duration ? ` (${duration}-day trip)` : ''
@@ -113,12 +120,12 @@ export async function POST(req: NextRequest) {
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-  // Step 1: Generate all 6 categories in parallel via Claude
+  // Step 1: Generate only missing categories in parallel via Claude
   const results = await Promise.all(
-    CATEGORIES.map(cat => generateForCategory(anthropic, cat, fullDestination))
+    missingCategories.map(cat => generateForCategory(anthropic, cat, fullDestination))
   )
 
-  // Step 2: Flatten into base rows
+  // Step 2: Flatten into base rows, track generated counts per category
   type BaseRow = {
     trip_id: string
     user_id: string
@@ -134,8 +141,12 @@ export async function POST(req: NextRequest) {
   }
 
   const baseRows: BaseRow[] = []
-  CATEGORIES.forEach((cat, idx) => {
-    for (const item of results[idx]) {
+  const generatedCounts: Record<string, number> = {}
+
+  missingCategories.forEach((cat, idx) => {
+    const items = results[idx]
+    generatedCounts[cat] = items.length
+    for (const item of items) {
       if (!item.name) continue
       baseRows.push({
         trip_id:            tripId,
@@ -192,11 +203,18 @@ export async function POST(req: NextRequest) {
     })
   }
 
+  // Log per-category generation + enrichment stats
+  for (const cat of missingCategories) {
+    const catRows = enrichedRows.filter(r => r.category === cat)
+    const withPhoto = catRows.filter(r => r.photo_url).length
+    console.log(`[Suggestions] ${cat}: generated ${generatedCounts[cat]} items, enriched ${withPhoto} with TA data`)
+  }
+
   const { error } = await supabase.from('trip_suggestions').insert(enrichedRows)
   if (error) {
     console.error('[/api/suggestions/generate] insert error:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, count: enrichedRows.length })
+  return NextResponse.json({ success: true, count: enrichedRows.length, regenerated: missingCategories })
 }
