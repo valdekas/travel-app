@@ -537,7 +537,7 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
                   Finding the best of {trip.city || trip.country}…
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Generating across 6 categories · ~15–30 seconds
+                  Generating across 6 categories · ~2–3 minutes
                 </p>
               </div>
             </div>
