@@ -7,13 +7,19 @@ import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { Sparkles, MapPin, Calendar, Check, Loader2, Clock, Tag, ChevronRight } from 'lucide-react'
+import { Sparkles, MapPin, Calendar, Check, Loader2, Clock, Tag, ChevronRight, ChevronDown } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { cn } from '@/lib/utils'
 
 /* ─── Type helpers ─────────────────────────────────────────────── */
 
 type SuggestionCategory = typeof SUGGESTION_CATEGORIES[number]['key']
+type ActiveTab = 'All' | SuggestionCategory
+
+const ALL_TAB = { key: 'All' as const, emoji: '✨', label: 'All' }
+const TABS = [ALL_TAB, ...SUGGESTION_CATEGORIES]
+
+const COLLAPSED_COUNT = 5
 
 function categoryToLocationType(cat: string) {
   const map: Record<string, string> = {
@@ -57,6 +63,34 @@ const priceColors: Record<string, string> = {
   '$$$$': 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400',
 }
 
+/* ─── Skeleton ──────────────────────────────────────────────────── */
+
+function SkeletonCard() {
+  return (
+    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      <div className="p-4 space-y-3">
+        <div className="flex items-start gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-muted animate-pulse shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-3.5 bg-muted animate-pulse rounded w-3/4" />
+            <div className="h-3 bg-muted animate-pulse rounded w-1/4" />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <div className="h-2.5 bg-muted animate-pulse rounded w-full" />
+          <div className="h-2.5 bg-muted animate-pulse rounded w-5/6" />
+          <div className="h-2.5 bg-muted animate-pulse rounded w-4/6" />
+        </div>
+        <div className="h-8 bg-muted/60 animate-pulse rounded-lg" />
+      </div>
+      <div className="px-3 pb-3 flex gap-2">
+        <div className="flex-1 h-8 bg-muted animate-pulse rounded-lg" />
+        <div className="flex-1 h-8 bg-muted animate-pulse rounded-lg" />
+      </div>
+    </div>
+  )
+}
+
 /* ─── Suggestion Card ───────────────────────────────────────────── */
 
 interface CardProps {
@@ -70,7 +104,6 @@ function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding 
   const [localPlaces, setLocalPlaces] = useState(s.added_to_places)
   const [localItinerary, setLocalItinerary] = useState(s.added_to_itinerary)
 
-  // Sync from parent (e.g. router.refresh)
   useEffect(() => { setLocalPlaces(s.added_to_places) }, [s.added_to_places])
   useEffect(() => { setLocalItinerary(s.added_to_itinerary) }, [s.added_to_itinerary])
 
@@ -84,7 +117,6 @@ function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding 
       'group flex flex-col bg-card border border-border rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-md hover:border-border/80',
       (localPlaces && localItinerary) && 'opacity-75',
     )}>
-      {/* Card header */}
       <div className="p-4 pb-3 flex-1 flex flex-col gap-2.5">
         <div className="flex items-start gap-2.5">
           <span className="text-2xl leading-none mt-0.5 flex-shrink-0" aria-hidden>
@@ -135,7 +167,6 @@ function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding 
         )}
       </div>
 
-      {/* Action row */}
       <div className="px-3 pb-3 flex gap-2">
         {localPlaces ? (
           <span className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg py-1.5">
@@ -182,15 +213,16 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
   const supabase = createClient()
 
   const [suggestions, setSuggestions] = useState(initialSuggestions)
+  const [activeTab, setActiveTab] = useState<ActiveTab>('All')
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const [addingIds, setAddingIds] = useState<Set<string>>(new Set())
   const [dayPickerSuggestion, setDayPickerSuggestion] = useState<TripSuggestion | null>(null)
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null)
   const [addingToItinerary, setAddingToItinerary] = useState(false)
 
-  // Sync when server refreshes
   useEffect(() => { setSuggestions(initialSuggestions) }, [initialSuggestions])
 
-  // Poll for suggestions while they're being generated
+  // Poll every 5s while generating
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null)
   const pollAttemptsRef = useRef(0)
   const generating = suggestions.length === 0
@@ -290,13 +322,9 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
     }
   }
 
-  /* ── Destination label ─────────────────────────────────────────── */
+  /* ── Helpers ───────────────────────────────────────────────────── */
 
-  const destination = trip.city
-    ? `${trip.city}, ${trip.country}`
-    : trip.country
-
-  /* ── Group suggestions by category ────────────────────────────── */
+  const destination = trip.city ? `${trip.city}, ${trip.country}` : trip.country
 
   const byCategory = new Map<string, TripSuggestion[]>()
   for (const s of suggestions) {
@@ -305,107 +333,208 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
     byCategory.set(s.category, arr)
   }
 
+  function toggleExpand(key: string) {
+    setExpandedCategories(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
+
   /* ─────────────────────────────────────────────────────────────── */
 
   return (
-    <div className="md:max-w-5xl md:mx-auto md:px-5 py-6 px-4 space-y-10">
+    <div className="flex flex-col min-h-full">
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Sparkles className="h-5 w-5 text-violet-500" />
-            <h1 className="text-xl font-bold">Suggestions</h1>
+      <div className="md:max-w-5xl md:mx-auto w-full px-4 md:px-5 pt-6 pb-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Sparkles className="h-5 w-5 text-violet-500" />
+          <h1 className="text-xl font-bold">Suggestions</h1>
+        </div>
+        <p className="text-sm text-muted-foreground">Curated ideas for {destination}</p>
+      </div>
+
+      {/* Sticky category tabs */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border">
+        <div className="md:max-w-5xl md:mx-auto w-full px-4 md:px-5">
+          <div className="flex gap-1.5 overflow-x-auto py-2.5 no-scrollbar">
+            {TABS.map(tab => {
+              const isActive = activeTab === tab.key
+              const count = tab.key === 'All'
+                ? suggestions.length
+                : (byCategory.get(tab.key as SuggestionCategory) ?? []).length
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key as ActiveTab)}
+                  disabled={generating}
+                  className={cn(
+                    'flex-none flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-150',
+                    isActive
+                      ? 'bg-violet-600 text-white shadow-sm'
+                      : generating
+                      ? 'text-muted-foreground/40 bg-muted/30 cursor-not-allowed'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+                  )}
+                >
+                  <span className="text-base leading-none">{tab.emoji}</span>
+                  {tab.label}
+                  {!generating && count > 0 && (
+                    <span className={cn(
+                      'text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
+                      isActive ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground',
+                    )}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
-          <p className="text-sm text-muted-foreground">
-            Curated ideas for {destination}
-          </p>
         </div>
       </div>
 
-      {/* Generating state */}
-      {generating && (
-        <div className="flex flex-col items-center justify-center py-20 text-center gap-6">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-violet-100 dark:bg-violet-950/50 flex items-center justify-center">
-              <Sparkles className="h-8 w-8 text-violet-500 animate-pulse" />
-            </div>
-            <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center">
-              <Loader2 className="h-3 w-3 text-white animate-spin" />
-            </div>
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold mb-1.5">
-              Finding the best of {trip.city || trip.country} for you…
-            </h2>
-            <p className="text-sm text-muted-foreground max-w-sm">
-              We&apos;re generating personalised recommendations across 6 categories.
-              This takes about 15–30 seconds.
-            </p>
-          </div>
-          <div className="flex gap-1.5">
-            {[0, 1, 2].map(i => (
-              <div
-                key={i}
-                className="w-2 h-2 rounded-full bg-violet-400 animate-bounce"
-                style={{ animationDelay: `${i * 0.15}s` }}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Content */}
+      <div className="md:max-w-5xl md:mx-auto w-full px-4 md:px-5 py-6 flex-1">
 
-      {/* Category sections */}
-      {!generating && SUGGESTION_CATEGORIES.map(({ key, emoji, label }) => {
-        const items = byCategory.get(key as SuggestionCategory) ?? []
-        if (items.length === 0) return null
-
-        return (
-          <section key={key}>
-            {/* Section header */}
-            <div className="flex items-center gap-2.5 mb-4">
-              <span className="text-xl" aria-hidden>{emoji}</span>
-              <h2 className="text-base font-semibold">{label}</h2>
-              <span className="text-xs text-muted-foreground ml-1">
-                {items.length} suggestion{items.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-
-            {/* Cards — horizontal scroll on mobile, grid on desktop */}
-            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory md:grid md:grid-cols-2 md:overflow-x-visible md:snap-none md:mx-0 md:px-0 lg:grid-cols-3 xl:grid-cols-4">
-              {items.map(s => (
-                <div key={s.id} className="flex-none w-[260px] md:w-auto snap-start">
-                  <SuggestionCard
-                    suggestion={suggestions.find(x => x.id === s.id) ?? s}
-                    onAddToPlaces={handleAddToPlaces}
-                    onOpenDayPicker={setDayPickerSuggestion}
-                    adding={addingIds.has(s.id)}
-                  />
+        {/* ── Skeleton loading ── */}
+        {generating && (
+          <div className="space-y-6">
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-2xl bg-violet-100 dark:bg-violet-950/50 flex items-center justify-center">
+                  <Sparkles className="h-6 w-6 text-violet-500 animate-pulse" />
                 </div>
-              ))}
+                <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center">
+                  <Loader2 className="h-3 w-3 text-white animate-spin" />
+                </div>
+              </div>
+              <div>
+                <p className="font-semibold text-sm">
+                  Finding the best of {trip.city || trip.country}…
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Generating across 6 categories · ~15–30 seconds
+                </p>
+              </div>
             </div>
-          </section>
-        )
-      })}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+            </div>
+          </div>
+        )}
 
-      {/* Empty state after polling exhausted */}
-      {!generating && suggestions.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
-            <Sparkles className="h-7 w-7 text-muted-foreground/40" />
+        {/* ── Single category view ── */}
+        {!generating && activeTab !== 'All' && (() => {
+          const catMeta = SUGGESTION_CATEGORIES.find(c => c.key === activeTab)!
+          const items = byCategory.get(activeTab) ?? []
+          return (
+            <section>
+              <div className="flex items-center gap-2.5 mb-5">
+                <span className="text-xl" aria-hidden>{catMeta.emoji}</span>
+                <h2 className="text-base font-semibold">{catMeta.label}</h2>
+                <span className="text-xs text-muted-foreground">
+                  {items.length} suggestion{items.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              {items.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
+                  <span className="text-4xl">{catMeta.emoji}</span>
+                  <p className="text-sm text-muted-foreground">No suggestions for this category yet.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {items.map(s => (
+                    <SuggestionCard
+                      key={s.id}
+                      suggestion={suggestions.find(x => x.id === s.id) ?? s}
+                      onAddToPlaces={handleAddToPlaces}
+                      onOpenDayPicker={setDayPickerSuggestion}
+                      adding={addingIds.has(s.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )
+        })()}
+
+        {/* ── All categories view ── */}
+        {!generating && activeTab === 'All' && (
+          <div className="space-y-10">
+            {suggestions.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
+                  <Sparkles className="h-7 w-7 text-muted-foreground/40" />
+                </div>
+                <div>
+                  <h2 className="font-semibold mb-1">No suggestions yet</h2>
+                  <p className="text-sm text-muted-foreground max-w-xs">
+                    Suggestions are generated automatically for new trips.
+                    They may still be loading — try refreshing in a moment.
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => router.refresh()}>
+                  Refresh
+                </Button>
+              </div>
+            )}
+
+            {SUGGESTION_CATEGORIES.map(({ key, emoji, label }) => {
+              const items = byCategory.get(key as SuggestionCategory) ?? []
+              if (items.length === 0) return null
+              const isExpanded = expandedCategories.has(key)
+              const displayed = isExpanded ? items : items.slice(0, COLLAPSED_COUNT)
+              const hasMore = items.length > COLLAPSED_COUNT
+
+              return (
+                <section key={key}>
+                  {/* Section header with "show all" shortcut */}
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <span className="text-xl" aria-hidden>{emoji}</span>
+                    <h2 className="text-base font-semibold">{label}</h2>
+                    <button
+                      onClick={() => setActiveTab(key as SuggestionCategory)}
+                      className="ml-1 text-xs text-muted-foreground hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
+                    >
+                      {items.length} suggestion{items.length !== 1 ? 's' : ''}
+                    </button>
+                  </div>
+
+                  {/* Cards — horizontal scroll mobile, grid desktop */}
+                  <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory md:grid md:grid-cols-2 md:overflow-x-visible md:snap-none md:mx-0 md:px-0 lg:grid-cols-3">
+                    {displayed.map(s => (
+                      <div key={s.id} className="flex-none w-[260px] md:w-auto snap-start">
+                        <SuggestionCard
+                          suggestion={suggestions.find(x => x.id === s.id) ?? s}
+                          onAddToPlaces={handleAddToPlaces}
+                          onOpenDayPicker={setDayPickerSuggestion}
+                          adding={addingIds.has(s.id)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Show more / less */}
+                  {hasMore && (
+                    <button
+                      onClick={() => toggleExpand(key)}
+                      className="mt-3 flex items-center gap-1.5 text-sm text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 font-medium transition-colors"
+                    >
+                      {isExpanded ? (
+                        <>Show less <ChevronDown className="h-3.5 w-3.5 rotate-180" /></>
+                      ) : (
+                        <>Show all {items.length} <ChevronDown className="h-3.5 w-3.5" /></>
+                      )}
+                    </button>
+                  )}
+                </section>
+              )
+            })}
           </div>
-          <div>
-            <h2 className="font-semibold mb-1">No suggestions yet</h2>
-            <p className="text-sm text-muted-foreground max-w-xs">
-              Suggestions are generated automatically for new trips.
-              They may still be loading — try refreshing in a moment.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => router.refresh()}>
-            Refresh
-          </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Day picker dialog */}
       <Dialog

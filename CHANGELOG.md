@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-06-26 (Suggestions tab — 15 per category + category filter tabs)
+
+### Changed — `app/api/suggestions/generate/route.ts`
+- Prompt updated: "List exactly 15" instead of 5 per category
+- `max_tokens` raised from 2000 → 6000 to accommodate larger responses
+- `.slice(0, 5)` → `.slice(0, 15)` so all 15 items are stored
+
+### Changed — `components/trips/suggestions-content.tsx`
+
+**Category filter tabs (Part 2):**
+- Sticky tab bar below the page header: "✨ All" + one tab per category (7 total)
+- Tabs scroll horizontally on mobile (`overflow-x-auto no-scrollbar`)
+- Active tab: violet pill (`bg-violet-600 text-white`); count badge per tab
+- **All view**: each category section collapses to first 5 cards; "Show all N ↓" expands to full list; "Show less ↑" collapses back; count label is a shortcut to jump to that category's tab
+- **Single-category view**: clean 1-col (mobile) / 2-col (desktop) grid showing all 15 suggestions; no "Show more" needed
+- Switching tabs resets the view without page navigation
+
+**Skeleton loading state (Part 3):**
+- Replaces the old centered spinner with a compact inline loading header + 6 skeleton cards in a grid
+- Tabs are rendered disabled (faded, `cursor-not-allowed`) so the user sees the structure immediately
+- Auto-polls Supabase every 5s (up to 12 attempts / 60s) — identical cadence to before
+
 ## 2026-06-26 (Landing phone showcase — fix gap and scroll-reset bug)
 
 ### Fixed — `components/landing/LandingPhoneShowcase.tsx`

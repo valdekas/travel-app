@@ -68,11 +68,11 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 ## AI Suggestions Tab
 
 * [x] DB migration `014_trip_suggestions.sql` — `trip_suggestions` table with RLS + index
-* [x] Background generation API `/api/suggestions/generate` — calls Claude Haiku for all 6 categories in parallel (5 per category), stores in DB; fire-and-forget from trip creation
+* [x] Background generation API `/api/suggestions/generate` — calls Claude Haiku for all 6 categories in parallel (15 per category), stores in DB; fire-and-forget from trip creation
 * [x] Trip creation fires generation — after INSERT, fires `fetch('/api/suggestions/generate', ...)` with no await
 * [x] "Suggestions" tab added to trip detail navigation (between Places and Itinerary)
 * [x] Suggestions page (`/trips/[id]/suggestions`) — server component fetching suggestions + itinerary days
-* [x] Suggestions content UI — category sections, horizontal scroll (mobile) / grid (desktop), cards with emoji/name/description/price/mustTry/tip/whyVisit, "+ Places" and "+ Itinerary" actions, day picker dialog, added ✓ badges, polling while generating, generating animation
+* [x] Suggestions content UI — category filter tabs (All + 6 categories, sticky, horizontal scroll mobile), All view collapses to 5 with "Show all N" expand, single-category view shows full 2-col grid; cards with emoji/name/description/price/mustTry/tip/whyVisit, "+ Places" and "+ Itinerary" actions, day picker dialog, added ✓ badges, skeleton loading state (tabs disabled + 6 skeleton cards), auto-polls every 5s until suggestions appear
 
 ## Places
 

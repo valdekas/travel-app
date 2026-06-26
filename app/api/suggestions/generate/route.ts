@@ -7,7 +7,7 @@ const CATEGORIES = SUGGESTION_CATEGORIES.map(c => c.key)
 
 function buildPrompt(category: string, destination: string): string {
   const isFood = category === 'Restaurants' || category === 'Bars'
-  return `You are a travel expert. List exactly 5 of the best ${category} in ${destination}.
+  return `You are a travel expert. List exactly 15 of the best ${category} in ${destination}.
 
 Return ONLY a valid JSON array — no markdown, no code fences, no explanation.
 Each item must have exactly these fields:
@@ -43,13 +43,13 @@ async function generateForCategory(
   try {
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2000,
+      max_tokens: 6000,
       messages: [{ role: 'user', content: buildPrompt(category, destination) }],
     })
     const text = message.content[0].type === 'text' ? message.content[0].text.trim() : '[]'
     const clean = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/, '')
     const items = JSON.parse(clean)
-    return Array.isArray(items) ? items.slice(0, 5) : []
+    return Array.isArray(items) ? items.slice(0, 15) : []
   } catch {
     return []
   }
