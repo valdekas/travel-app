@@ -13,6 +13,9 @@ const SLIDES = [
   'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=1920&q=80',
   'https://images.unsplash.com/photo-1534430480872-3498386e7856?w=1920&q=80',
   'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=1920&q=80',
+  'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=1920&q=80',
+  'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=1920&q=80',
+  'https://images.unsplash.com/photo-1548574505-5e239809ee19?w=1920&q=80',
 ]
 
 export function LandingHero() {
