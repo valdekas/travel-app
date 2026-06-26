@@ -56,11 +56,11 @@ interface Props {
 /* ─── Price badge colours ───────────────────────────────────────── */
 
 const priceColors: Record<string, string> = {
-  'Free': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400',
-  '$':    'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
-  '$$':   'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400',
-  '$$$':  'bg-orange-100 text-orange-700 dark:bg-orange-950/60 dark:text-orange-400',
-  '$$$$': 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400',
+  'Free': 'bg-green-500 text-white',
+  '$':    'bg-gray-500/80 text-white',
+  '$$':   'bg-blue-500/80 text-white',
+  '$$$':  'bg-amber-500/80 text-white',
+  '$$$$': 'bg-purple-500/80 text-white',
 }
 
 /* ─── Skeleton ──────────────────────────────────────────────────── */
@@ -146,14 +146,32 @@ function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding 
           </div>
         )}
         {/* Price badge overlay — prefer TA price_level, fall back to AI price_range */}
-        {(s.price_level ?? s.price_range) && (
-          <span className={cn(
-            'absolute top-2 right-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full backdrop-blur-sm',
-            priceColors[s.price_level ?? s.price_range ?? ''] ?? 'bg-slate-100/90 text-slate-700',
-          )}>
-            {s.price_level ?? s.price_range}
-          </span>
-        )}
+        {(() => {
+          const raw = s.price_level ?? s.price_range
+          if (!raw) return null
+          // Normalise AI text labels to $ symbols
+          const normalized =
+            /free/i.test(raw)      ? 'Free' :
+            /budget|cheap|\$$/i.test(raw) && raw === '$' ? '$' :
+            raw.startsWith('$$$$') ? '$$$$' :
+            raw.startsWith('$$$')  ? '$$$'  :
+            raw.startsWith('$$')   ? '$$'   :
+            raw.startsWith('$')    ? '$'    :
+            /budget|cheap/i.test(raw) ? '$' :
+            /mid|moderate/i.test(raw) ? '$$' :
+            /expensive|upscale/i.test(raw) ? '$$$' :
+            /luxury|fine.?dining/i.test(raw) ? '$$$$' :
+            null
+          if (!normalized) return null
+          return (
+            <span className={cn(
+              'absolute top-2 right-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full backdrop-blur-sm',
+              priceColors[normalized] ?? 'bg-gray-500/80 text-white',
+            )}>
+              {normalized}
+            </span>
+          )
+        })()}
       </div>
 
       {/* Body */}
