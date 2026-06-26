@@ -6,13 +6,32 @@ import { searchTripAdvisorPlace } from '@/lib/utils/tripadvisor'
 
 const CATEGORIES = SUGGESTION_CATEGORIES.map(c => c.key)
 
+const CATEGORY_FOCUS: Record<string, string> = {
+  Restaurants:      'Include a mix of iconic local institutions, Michelin-recommended or Michelin-listed spots, and neighborhood favorites with thousands of reviews. Prioritise places that appear in Time Out, Condé Nast Traveler, or Lonely Planet food guides for this city.',
+  Attractions:      'Include UNESCO World Heritage sites, major landmarks, and must-see spots that appear in every travel guide for this city. Prioritise places with the highest visitor numbers and review counts.',
+  Viewpoints:       'Include panoramic spots featured heavily in travel photography, Instagram, and city guide "best views" lists. These should be well-signposted, accessible locations known to most tourists.',
+  Museums:          'Include the most visited and renowned cultural, art, and history institutions. Prioritise places with permanent world-class collections that draw international visitors.',
+  Bars:             'Include iconic cocktail bars, celebrated rooftop bars, historic pubs or taverns, and nightlife venues consistently mentioned in city nightlife guides and international bar award lists.',
+  'Parks & Nature': 'Include the most famous parks, botanical gardens, waterfronts, and natural landmarks that are go-to recreational spots for both locals and tourists. Prioritise places with high foot traffic and many reviews.',
+}
+
 function buildPrompt(category: string, destination: string): string {
   const isFood = category === 'Restaurants' || category === 'Bars'
-  return `You are a travel expert. List exactly 15 of the best ${category} in ${destination}.
+  const categoryFocus = CATEGORY_FOCUS[category] ?? ''
+  return `You are a travel expert. Suggest exactly 15 ${category} in ${destination} that are:
+- Well-known and established (not new, obscure, or recently opened)
+- Highly rated and frequently reviewed on TripAdvisor, Google Maps, and major travel platforms
+- Actually located in the city itself (not nearby towns, suburbs, or day-trip destinations)
+- Popular among both locals and tourists, with a strong and consistent reputation
+- Likely to appear in major travel guides (Lonely Planet, Michelin, Time Out, Condé Nast Traveler)
+
+${categoryFocus}
+
+Focus on places with thousands of reviews and a strong online presence — these are the places travelers actually visit, photograph, and write about. Avoid small, niche, or hard-to-find venues that are unlikely to appear in travel databases.
 
 Return ONLY a valid JSON array — no markdown, no code fences, no explanation.
 Each item must have exactly these fields:
-- name: string (specific, real place name)
+- name: string (exact, well-known place name as it appears on TripAdvisor/Google Maps)
 - emoji: string (one relevant emoji)
 - description: string (1–2 sentences about what it is)
 - whyVisit: string (one compelling sentence tourists love)

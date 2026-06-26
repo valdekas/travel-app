@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-06-26 (Suggestions: Improve Claude prompt for TripAdvisor match rate)
+
+### Changed — `app/api/suggestions/generate/route.ts`
+- `buildPrompt()` rewritten with a richer, category-aware prompt
+- Emphasises well-known, established, highly-reviewed places likely in TripAdvisor's database
+- Instructs Claude to use exact place names as they appear on TripAdvisor/Google Maps
+- Adds per-category focus (`CATEGORY_FOCUS` map): Restaurants → Michelin/Time Out picks; Attractions → UNESCO/landmarks; Museums → high-traffic institutions; Bars → award-listed venues; Viewpoints → photographed panoramic spots; Parks → famous public green spaces
+- Discourages niche, obscure, or recently-opened venues that won't be in travel databases
+- JSON schema unchanged; no DB or enrichment logic changes
+
+---
+
 ## 2026-06-26 (Suggestions: Filter to enriched-only cards)
 
 ### Changed — `components/trips/suggestions-content.tsx`
