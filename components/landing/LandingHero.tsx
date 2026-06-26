@@ -2,35 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
-import { ArrowRight, MapPin, ChevronDown } from 'lucide-react'
+import { ArrowRight, ChevronDown } from 'lucide-react'
 
 const SLIDES = [
-  {
-    src: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1920&q=90',
-    label: 'Tokyo, Japan',
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?w=1920&q=90',
-    label: 'Santorini, Greece',
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1490806843957-31f4c9a91c65?w=1920&q=90',
-    label: 'Bali, Indonesia',
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=1920&q=80',
-    label: '🇺🇸 New York City',
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1534430480872-3498386e7856?w=1920&q=80',
-    label: '🇺🇸 Los Angeles',
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=1920&q=80',
-    label: '🇦🇪 Dubai',
-  },
+  'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1920&q=90',
+  'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?w=1920&q=90',
+  'https://images.unsplash.com/photo-1490806843957-31f4c9a91c65?w=1920&q=90',
+  'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=1920&q=80',
+  'https://images.unsplash.com/photo-1534430480872-3498386e7856?w=1920&q=80',
+  'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=1920&q=80',
 ]
 
 export function LandingHero() {
@@ -44,15 +26,15 @@ export function LandingHero() {
   return (
     <section className="relative h-screen min-h-[600px] overflow-hidden bg-slate-950">
       {/* Background images */}
-      {SLIDES.map((slide, i) => (
+      {SLIDES.map((src, i) => (
         <div
-          key={slide.src}
+          key={src}
           className="absolute inset-0 transition-opacity duration-[1800ms] ease-in-out"
           style={{ opacity: i === current ? 1 : 0 }}
         >
           <img
-            src={slide.src}
-            alt={slide.label}
+            src={src}
+            alt=""
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/70" />
@@ -61,21 +43,6 @@ export function LandingHero() {
 
       {/* Content */}
       <div className="relative h-full flex flex-col items-center justify-center text-center px-6">
-        {/* City badge */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={current}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.5 }}
-            className="flex items-center gap-1.5 mb-6 bg-white/15 backdrop-blur-sm border border-white/20 text-white/90 text-sm font-medium rounded-full px-4 py-1.5"
-          >
-            <MapPin className="h-3.5 w-3.5" />
-            {SLIDES[current].label}
-          </motion.div>
-        </AnimatePresence>
-
         <motion.h1
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
