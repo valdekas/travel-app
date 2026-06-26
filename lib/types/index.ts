@@ -334,8 +334,8 @@ export interface TripSuggestion {
   added_to_places: boolean
   added_to_itinerary: boolean
   created_at: string
-  // Foursquare enrichment fields (nullable — older suggestions may not have these)
-  fsq_place_id?: string | null
+  // TripAdvisor enrichment fields (nullable — older suggestions may not have these)
+  ta_location_id?: string | null
   address?: string | null
   lat?: number | null
   lng?: number | null
@@ -346,6 +346,7 @@ export interface TripSuggestion {
   website?: string | null
   phone?: string | null
   hours?: string | null
+  price_level?: string | null
 }
 
 export const SUGGESTION_CATEGORIES = [

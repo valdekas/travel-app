@@ -73,7 +73,7 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [x] "Suggestions" tab added to trip detail navigation (between Places and Itinerary)
 * [x] Suggestions page (`/trips/[id]/suggestions`) — server component fetching suggestions + itinerary days
 * [x] Suggestions content UI — category filter tabs (All + 6 categories, sticky, horizontal scroll mobile), All view collapses to 5 with "Show all N" expand, single-category view shows full 2-col grid; cards with emoji/name/description/price/mustTry/tip/whyVisit, "+ Places" and "+ Itinerary" actions, day picker dialog, added ✓ badges, skeleton loading state (tabs disabled + 6 skeleton cards), auto-polls every 5s until suggestions appear
-* [x] Foursquare enrichment — after Claude generates names, each suggestion enriched with FSQ Places API: real photo, address, rating, coordinates, Google Maps link, website; graceful degradation if FSQ returns no result; migration 016 adds enrichment columns; card UI updated with hero photo/gradient placeholder, rating badge, address line, Maps + Web links
+* [x] TripAdvisor enrichment — replaced Foursquare with TripAdvisor Content API; real photo, address, rating (1-5 scale + review count), coordinates, Google Maps link, website, price_level; sequential requests with 100ms delay; migration 017 swaps fsq_place_id → ta_location_id + price_level; card shows TA link, reviews count, TA price_level preferred over AI price_range
 
 ## Places
 

@@ -145,13 +145,13 @@ function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding 
             <span className="text-5xl opacity-80" aria-hidden>{s.emoji || '📍'}</span>
           </div>
         )}
-        {/* Price badge overlay */}
-        {s.price_range && (
+        {/* Price badge overlay — prefer TA price_level, fall back to AI price_range */}
+        {(s.price_level ?? s.price_range) && (
           <span className={cn(
             'absolute top-2 right-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full backdrop-blur-sm',
-            priceColors[s.price_range] ?? 'bg-slate-100 text-slate-600',
+            priceColors[s.price_level ?? s.price_range ?? ''] ?? 'bg-slate-100/90 text-slate-700',
           )}>
-            {s.price_range}
+            {s.price_level ?? s.price_range}
           </span>
         )}
       </div>
@@ -166,11 +166,16 @@ function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding 
           <h3 className="font-semibold text-sm leading-snug text-foreground line-clamp-2 flex-1">{s.name}</h3>
         </div>
 
-        {/* Rating */}
+        {/* Rating — TripAdvisor 1–5 scale */}
         {s.rating != null && (
           <div className="flex items-center gap-1.5">
             <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
-            <span className="text-xs font-semibold text-foreground">{s.rating}/10</span>
+            <span className="text-xs font-semibold text-foreground">{s.rating}</span>
+            {s.reviews_count != null && (
+              <span className="text-[10px] text-muted-foreground">
+                · {s.reviews_count.toLocaleString()} reviews
+              </span>
+            )}
           </div>
         )}
 
@@ -246,7 +251,7 @@ function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding 
           </Button>
         )}
 
-        {/* External links — only shown when Foursquare data exists */}
+        {/* External links — only shown when TripAdvisor enrichment data exists */}
         {s.google_maps_url && (
           <a
             href={s.google_maps_url}
@@ -267,6 +272,17 @@ function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding 
             title="Visit website"
           >
             <Globe className="h-3 w-3" /> Web
+          </a>
+        )}
+        {s.ta_location_id && (
+          <a
+            href={`https://www.tripadvisor.com/Location_Review-d${s.ta_location_id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-8 px-2.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted/50 transition-colors"
+            title="Open in TripAdvisor"
+          >
+            ✈️ TA
           </a>
         )}
       </div>

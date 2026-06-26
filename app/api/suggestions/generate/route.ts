@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { SUGGESTION_CATEGORIES } from '@/lib/types'
-import { searchFoursquarePlace } from '@/lib/utils/foursquare'
+import { searchTripAdvisorPlace } from '@/lib/utils/tripadvisor'
 
 const CATEGORIES = SUGGESTION_CATEGORIES.map(c => c.key)
 
@@ -55,6 +55,8 @@ async function generateForCategory(
     return []
   }
 }
+
+const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -136,36 +138,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, count: 0 })
   }
 
-  // Step 3: Enrich each suggestion with Foursquare data in parallel (graceful degradation)
-  const enriched = await Promise.allSettled(
-    baseRows.map(async (row) => {
-      const fsq = await searchFoursquarePlace(row.name, city ?? '', country ?? '')
-      return {
-        ...row,
-        fsq_place_id:    fsq?.fsq_id    ?? null,
-        address:         fsq?.address   ?? null,
-        lat:             fsq?.lat       ?? null,
-        lng:             fsq?.lng       ?? null,
-        rating:          fsq?.rating    ?? null,
-        reviews_count:   null as number | null, // FSQ free tier doesn't expose review count
-        photo_url:       fsq?.photo_url ?? null,
-        google_maps_url: fsq?.google_maps_url ?? null,
-        website:         fsq?.website   ?? null,
-        phone:           fsq?.phone     ?? null,
-        hours:           fsq?.hours     ?? null,
-      }
+  // Step 3: Enrich sequentially with 100 ms delay to respect TripAdvisor rate limits
+  type EnrichedRow = BaseRow & {
+    ta_location_id: string | null
+    address: string | null
+    lat: number | null
+    lng: number | null
+    rating: number | null
+    reviews_count: number | null
+    photo_url: string | null
+    google_maps_url: string | null
+    website: string | null
+    phone: string | null
+    price_level: string | null
+  }
+
+  const enrichedRows: EnrichedRow[] = []
+  for (const row of baseRows) {
+    await delay(100)
+    const ta = await searchTripAdvisorPlace(row.name, city ?? '', country ?? '')
+    enrichedRows.push({
+      ...row,
+      ta_location_id: ta?.ta_location_id ?? null,
+      address:        ta?.address        ?? null,
+      lat:            ta?.lat            ?? null,
+      lng:            ta?.lng            ?? null,
+      rating:         ta?.rating         ?? null,
+      reviews_count:  ta?.reviews_count  ?? null,
+      photo_url:      ta?.photo_url      ?? null,
+      google_maps_url:ta?.google_maps_url ?? null,
+      website:        ta?.website        ?? null,
+      phone:          ta?.phone          ?? null,
+      price_level:    ta?.price_level    ?? null,
     })
-  )
+  }
 
-  const rows = enriched.map((result, i) =>
-    result.status === 'fulfilled' ? result.value : baseRows[i]
-  )
-
-  const { error } = await supabase.from('trip_suggestions').insert(rows)
+  const { error } = await supabase.from('trip_suggestions').insert(enrichedRows)
   if (error) {
     console.error('[/api/suggestions/generate] insert error:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, count: rows.length })
+  return NextResponse.json({ success: true, count: enrichedRows.length })
 }

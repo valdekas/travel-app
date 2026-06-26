@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-06-26 (Suggestions: Replace Foursquare with TripAdvisor Content API)
+
+### Removed
+- `lib/utils/foursquare.ts` — deleted entirely
+- `fsq_place_id` column removed via migration 017
+
+### Added — `lib/utils/tripadvisor.ts`
+Server-side utility. `searchTripAdvisorPlace(name, city, country)` makes up to 3 TA API calls:
+1. `GET /location/search` — find location_id
+2. `GET /location/{id}/details` — rating, reviews_count, address, coords, website, phone, price_level
+3. `GET /location/{id}/photos` — largest available photo URL
+Returns `TripAdvisorPlace | null` — null on any error or missing key.
+
+### Added — `supabase/migrations/017_trip_suggestions_tripadvisor.sql`
+Drops `fsq_place_id`, adds `ta_location_id TEXT` and `price_level TEXT`.
+**⚠️ Must be applied manually in Supabase SQL editor.**
+
+### Changed — `app/api/suggestions/generate/route.ts`
+- Replaced `Promise.allSettled` parallel enrichment with sequential `for` loop + 100 ms delay per suggestion to respect TA rate limits
+- `searchTripAdvisorPlace` replaces `searchFoursquarePlace`
+- Enrichment fields updated: `ta_location_id`, `price_level` (replaces `fsq_place_id`)
+
+### Changed — `lib/types/index.ts`
+`TripSuggestion` — `fsq_place_id` removed, `ta_location_id` + `price_level` added.
+
+### Changed — `components/trips/suggestions-content.tsx`
+- Price badge: prefers `price_level` (TA) over AI `price_range` fallback
+- Rating: displays as `⭐ {rating} · {n} reviews` (TA 1–5 scale, no "/10")
+- New `✈️ TA` link button in card footer → `tripadvisor.com/Location_Review-d{id}`
+
 ## 2026-06-26 (Suggestions: Foursquare enrichment — photos, ratings, addresses)
 
 ### Added — `lib/utils/foursquare.ts`
