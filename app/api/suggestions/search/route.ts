@@ -7,32 +7,96 @@ const GOOGLE_GEOCODE_BASE = 'https://maps.googleapis.com/maps/api/geocode/json'
 const DELAY_MS            = 100
 const MAX_RESULTS         = 10
 
-// Maps panel category IDs → TA API category filter
-const TA_CATEGORY_MAP: Record<string, string> = {
-  'Restaurants':               'restaurants',
-  'Attractions':               'attractions',
-  'Viewpoints':                'attractions',
-  'Museums':                   'attractions',
-  'Bars':                      'restaurants',
-  'Parks & Nature':            'attractions',
-  'restaurants and dining':        'restaurants',
-  'sightseeing and landmarks':     'attractions',
-  'guided tours and experiences':  'attractions',
-  'shopping and markets':          'attractions',
-  'nature and outdoor activities': 'attractions',
-  'nightlife and entertainment':   'restaurants',
+// ── Category mapping ──────────────────────────────────────────────────────────
+//
+// taCategory:    TA API accepts 'restaurants' | 'attractions' | 'hotels' | 'geos'
+// subcategories: TA subcategory codes to narrow results within the main category
+// excludeTypes:  TA details.category.key values to reject during post-filter
+//   (prevents e.g. office buildings appearing in Parks & Nature)
+
+interface CategoryMapping {
+  taCategory:    string
+  subcategories: string[] | null
+  excludeTypes:  string[]
+  searchPrefix:  string   // used by text-search fallback only
 }
 
-// Text-search fallback query prefixes for categories that need disambiguation
-const SEARCH_PREFIX_MAP: Record<string, string> = {
-  'Viewpoints':                'viewpoints panoramic scenic',
-  'Museums':                   'museums galleries',
-  'Bars':                      'bars cocktails nightlife',
-  'Parks & Nature':            'parks nature gardens',
-  'guided tours and experiences':  'tours experiences',
-  'shopping and markets':          'shopping markets',
-  'nature and outdoor activities': 'parks nature outdoor',
-  'nightlife and entertainment':   'bars nightlife entertainment',
+const CATEGORY_MAP: Record<string, CategoryMapping> = {
+  // ── Places panel ────────────────────────────────────────────────────────────
+  'Restaurants': {
+    taCategory:    'restaurants',
+    subcategories: null,
+    excludeTypes:  ['attraction', 'hotel'],
+    searchPrefix:  '',
+  },
+  'Bars': {
+    taCategory:    'restaurants',
+    subcategories: ['10591', '10592', '10593'],   // bars, nightlife, pubs
+    excludeTypes:  ['attraction', 'hotel'],
+    searchPrefix:  'bars cocktails nightlife',
+  },
+  'Attractions': {
+    taCategory:    'attractions',
+    subcategories: ['10008', '10009', '10010'],   // sights, landmarks, points of interest
+    excludeTypes:  ['restaurant', 'hotel'],
+    searchPrefix:  '',
+  },
+  'Museums': {
+    taCategory:    'attractions',
+    subcategories: ['10013'],                     // museums
+    excludeTypes:  ['restaurant', 'hotel'],
+    searchPrefix:  'museums galleries',
+  },
+  'Viewpoints': {
+    taCategory:    'attractions',
+    subcategories: ['10009', '10010'],            // scenic lookouts, observation decks
+    excludeTypes:  ['restaurant', 'hotel'],
+    searchPrefix:  'viewpoints panoramic scenic',
+  },
+  'Parks & Nature': {
+    taCategory:    'attractions',
+    subcategories: ['10047', '10048', '10049'],   // parks, nature & wildlife, gardens
+    excludeTypes:  ['restaurant', 'hotel'],
+    searchPrefix:  'parks nature gardens',
+  },
+
+  // ── Itinerary panel ──────────────────────────────────────────────────────────
+  'restaurants and dining': {
+    taCategory:    'restaurants',
+    subcategories: null,
+    excludeTypes:  ['attraction', 'hotel'],
+    searchPrefix:  '',
+  },
+  'sightseeing and landmarks': {
+    taCategory:    'attractions',
+    subcategories: ['10008', '10009', '10010'],
+    excludeTypes:  ['restaurant', 'hotel'],
+    searchPrefix:  '',
+  },
+  'guided tours and experiences': {
+    taCategory:    'attractions',
+    subcategories: null,
+    excludeTypes:  ['restaurant', 'hotel'],
+    searchPrefix:  'tours experiences',
+  },
+  'shopping and markets': {
+    taCategory:    'attractions',
+    subcategories: null,
+    excludeTypes:  ['restaurant', 'hotel'],
+    searchPrefix:  'shopping markets',
+  },
+  'nature and outdoor activities': {
+    taCategory:    'attractions',
+    subcategories: ['10047', '10048', '10049'],
+    excludeTypes:  ['restaurant', 'hotel'],
+    searchPrefix:  'parks nature outdoor',
+  },
+  'nightlife and entertainment': {
+    taCategory:    'restaurants',
+    subcategories: ['10591', '10592', '10593'],
+    excludeTypes:  ['attraction', 'hotel'],
+    searchPrefix:  'bars nightlife entertainment',
+  },
 }
 
 function delay(ms: number) { return new Promise(res => setTimeout(res, ms)) }
@@ -55,17 +119,23 @@ async function geocode(address: string): Promise<{ lat: number; lng: number } | 
 async function nearbySearch(
   lat: number,
   lng: number,
-  taCategory: string,
+  mapping: CategoryMapping,
   radius: number,
 ): Promise<Array<{ location_id: string; name: string }>> {
-  const url = `${TA_BASE}/location/nearby_search` +
-    `?latLong=${lat},${lng}` +
-    `&category=${taCategory}` +
-    `&radius=${radius}` +
-    `&radiusUnit=km` +
-    `&language=en` +
-    `&key=${TA_API_KEY}`
+  const params = new URLSearchParams({
+    latLong:     `${lat},${lng}`,
+    category:    mapping.taCategory,
+    radius:      String(radius),
+    radiusUnit:  'km',
+    language:    'en',
+    limit:       '15',
+    key:         TA_API_KEY ?? '',
+  })
+  if (mapping.subcategories) {
+    params.append('subcategory', mapping.subcategories.join(','))
+  }
 
+  const url = `${TA_BASE}/location/nearby_search?${params}`
   const res = await fetch(url, { headers: { Accept: 'application/json' } })
   if (!res.ok) {
     console.error('[TA Search] Nearby search failed:', res.status, 'latLong:', lat, lng)
@@ -77,14 +147,19 @@ async function nearbySearch(
 
 async function textSearch(
   searchQuery: string,
-  taCategory: string,
+  mapping: CategoryMapping,
 ): Promise<Array<{ location_id: string; name: string }>> {
-  const url = `${TA_BASE}/location/search` +
-    `?searchQuery=${encodeURIComponent(searchQuery)}` +
-    `&category=${taCategory}` +
-    `&language=en` +
-    `&key=${TA_API_KEY}`
+  const params = new URLSearchParams({
+    searchQuery,
+    category:  mapping.taCategory,
+    language:  'en',
+    key:       TA_API_KEY ?? '',
+  })
+  if (mapping.subcategories) {
+    params.append('subcategory', mapping.subcategories.join(','))
+  }
 
+  const url = `${TA_BASE}/location/search?${params}`
   const res = await fetch(url, { headers: { Accept: 'application/json' } })
   if (!res.ok) {
     console.error('[TA Search] Text search failed:', res.status, 'query:', searchQuery)
@@ -95,18 +170,18 @@ async function textSearch(
 }
 
 export interface TaSearchResult {
-  ta_location_id: string
-  name:           string
-  address:        string
-  lat:            number | null
-  lng:            number | null
-  rating:         number | null
-  reviews_count:  number | null
-  photo_url:      string | null
+  ta_location_id:  string
+  name:            string
+  address:         string
+  lat:             number | null
+  lng:             number | null
+  rating:          number | null
+  reviews_count:   number | null
+  photo_url:       string | null
   google_maps_url: string
-  website:        string | null
-  price_level:    string | null
-  category:       string
+  website:         string | null
+  price_level:     string | null
+  category:        string
 }
 
 export async function POST(req: NextRequest) {
@@ -123,18 +198,23 @@ export async function POST(req: NextRequest) {
     tripLng?: number | null
   }
 
-  const taCategory = TA_CATEGORY_MAP[category] ?? 'attractions'
+  const mapping = CATEGORY_MAP[category] ?? {
+    taCategory:    'attractions',
+    subcategories: null,
+    excludeTypes:  [],
+    searchPrefix:  '',
+  }
 
-  // ── Step 1: Resolve coordinates ──────────────────────────────────────────────
+  // ── Step 1: Resolve coordinates ───────────────────────────────────────────────
   //
   // Priority:
-  //   1. Geocode the specific area (if provided) — tight 5km radius
-  //   2. Trip's own stored coordinates — city-wide 20km radius
-  //   3. Geocode the city — city-wide 20km radius
-  //   4. Text search fallback (no coordinates available)
+  //   1. Geocode specific area (if provided) → 5km radius
+  //   2. Trip's stored coordinates           → 20km radius
+  //   3. Geocode city                        → 20km radius
+  //   4. Text search fallback (no coords)
 
   let coords: { lat: number; lng: number } | null = null
-  let searchRadius = 20  // km — used for whole-city searches
+  let searchRadius = 20
 
   if (area) {
     coords = await geocode(`${area}, ${city}, ${country}`)
@@ -155,24 +235,28 @@ export async function POST(req: NextRequest) {
   let locations: Array<{ location_id: string; name: string }> = []
 
   if (coords) {
-    locations = await nearbySearch(coords.lat, coords.lng, taCategory, searchRadius)
-    console.log(`[TA Search] Nearby ${taCategory} within ${searchRadius}km of ${coords.lat},${coords.lng} → ${locations.length} results`)
+    locations = await nearbySearch(coords.lat, coords.lng, mapping, searchRadius)
+    console.log(
+      `[TA Search] Nearby ${mapping.taCategory}` +
+      (mapping.subcategories ? ` [${mapping.subcategories.join(',')}]` : '') +
+      ` within ${searchRadius}km of ${coords.lat},${coords.lng} → ${locations.length} results`,
+    )
   }
 
-  // Fallback: text search if nearby returned nothing
   if (locations.length === 0) {
-    const prefix      = SEARCH_PREFIX_MAP[category] ?? ''
     const locationTerm = area ? `${area}, ${city}` : `${city}, ${country}`
-    const searchQuery  = prefix ? `${prefix} ${locationTerm}` : locationTerm
-    console.warn('[TA Search] Nearby returned 0 results, falling back to text search:', searchQuery)
-    locations = await textSearch(searchQuery, taCategory)
+    const searchQuery  = mapping.searchPrefix
+      ? `${mapping.searchPrefix} ${locationTerm}`
+      : locationTerm
+    console.warn('[TA Search] Nearby returned 0 — text fallback:', searchQuery)
+    locations = await textSearch(searchQuery, mapping)
   }
 
   if (locations.length === 0) {
     return NextResponse.json({ results: [] })
   }
 
-  // ── Step 3: Enrich each result (details + photos) ────────────────────────────
+  // ── Step 3: Enrich + relevance-filter ────────────────────────────────────────
 
   const results: TaSearchResult[] = []
 
@@ -187,6 +271,13 @@ export async function POST(req: NextRequest) {
       )
       if (!detailsRes.ok) continue
       const details = await detailsRes.json()
+
+      // Relevance filter: skip results of the wrong place type
+      const detailsCatKey: string = details.category?.key ?? ''
+      if (mapping.excludeTypes.includes(detailsCatKey)) {
+        console.log(`[TA Search] Skipping "${details.name}" — type "${detailsCatKey}" excluded for category "${category}"`)
+        continue
+      }
 
       await delay(DELAY_MS)
 
