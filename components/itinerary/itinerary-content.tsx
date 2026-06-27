@@ -704,14 +704,23 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
   // ── CRUD ──────────────────────────────────────────────────────────────────────
 
   async function addDay() {
-    const lastDay = days[days.length - 1]
-    const nextDate = lastDay
-      ? format(addDays(parseISO(lastDay.date), 1), 'yyyy-MM-dd')
-      : (trip.start_date ?? format(new Date(), 'yyyy-MM-dd'))
+    const nextDayNumber = days.length + 1
+
+    // Anchor date to trip start so it's always start_date + (dayNumber - 1),
+    // not last-day + 1 (which drifts when days are deleted then re-added).
+    let newDate: string | null = null
+    if (trip.start_date) {
+      newDate = format(addDays(parseISO(trip.start_date), nextDayNumber - 1), 'yyyy-MM-dd')
+    } else {
+      const lastDay = days[days.length - 1]
+      newDate = lastDay?.date
+        ? format(addDays(parseISO(lastDay.date), 1), 'yyyy-MM-dd')
+        : null
+    }
 
     const { data, error } = await supabase
       .from('itinerary_days')
-      .insert({ trip_id: trip.id, date: nextDate, day_number: days.length + 1 })
+      .insert({ trip_id: trip.id, date: newDate, day_number: nextDayNumber, is_completed: false })
       .select('*, items:itinerary_items(*)')
       .single()
 
@@ -829,11 +838,17 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
     const renumbered = days
       .filter(d => d.id !== dayId)
       .sort((a, b) => (a.day_number ?? 0) - (b.day_number ?? 0))
-      .map((day, index) => ({ ...day, day_number: index + 1 }))
+      .map((day, index) => ({
+        ...day,
+        day_number: index + 1,
+        date: trip.start_date
+          ? format(addDays(parseISO(trip.start_date), index), 'yyyy-MM-dd')
+          : day.date,
+      }))
 
     await Promise.all(
       renumbered.map(day =>
-        supabase.from('itinerary_days').update({ day_number: day.day_number }).eq('id', day.id)
+        supabase.from('itinerary_days').update({ day_number: day.day_number, date: day.date }).eq('id', day.id)
       )
     )
 

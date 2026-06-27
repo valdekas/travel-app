@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-06-27 (Fix itinerary day date calculation)
+
+### Changed — `components/itinerary/itinerary-content.tsx`
+- `addDay`: date is now `trip.start_date + (nextDayNumber - 1)` when a start date exists, instead of `lastDay.date + 1`. Eliminates date drift after deletions. Falls back to last-day+1 (or null) when trip has no start date.
+- `deleteDay`: renumbering now also recalculates each day's date as `trip.start_date + index` and writes both `day_number` and `date` to DB. Dates snap back to the correct range after any deletion.
+
+---
+
 ## 2026-06-27 (Fix itinerary day renumbering after deletion)
 
 ### Changed — `components/itinerary/itinerary-content.tsx`
