@@ -478,13 +478,18 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
         .eq('day_id', selectedDayId)
 
       const { error: insertErr } = await supabase.from('itinerary_items').insert({
-        trip_id:     trip.id,
-        day_id:      selectedDayId,
-        title:       s.name,
-        description: s.description ?? null,
-        type:        categoryToItineraryType(s.category),
-        cost:        0,
-        order_index: count ?? 0,
+        trip_id:          trip.id,
+        day_id:           selectedDayId,
+        title:            s.name,
+        description:      s.description ?? null,
+        type:             categoryToItineraryType(s.category),
+        cost:             0,
+        order_index:      count ?? 0,
+        latitude:         s.lat         ?? null,
+        longitude:        s.lng         ?? null,
+        location_name:    s.name        ?? null,
+        formatted_address: s.address    ?? null,
+        google_maps_url:  s.google_maps_url ?? null,
       })
       if (insertErr) throw insertErr
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-06-27 (Fix: save coordinates when adding from Suggestions)
+
+### Changed — `components/trips/suggestions-content.tsx`
+`handleAddToItinerary` now writes `latitude`, `longitude`, `location_name`, `formatted_address`, and `google_maps_url` to the inserted `itinerary_items` row. Source fields: `s.lat`, `s.lng`, `s.name`, `s.address`, `s.google_maps_url` from the `TripSuggestion` object.
+
+### Changed — `components/itinerary/itinerary-suggestions-panel.tsx`
+`handleAdd` rows now include the same five coordinate/location fields from each `TaResult` object (`s.lat`, `s.lng`, `s.name`, `s.address`, `s.google_maps_url`).
+
+### Changed — `app/api/itinerary/auto-schedule/route.ts`
+Added `console.log` for activities received, activities with coords, and travel times computed — visible in PM2 logs to confirm the fix is working.
+
+---
+
 ## 2026-06-27 (✨ Auto-schedule itinerary days)
 
 ### Added — `supabase/migrations/018_itinerary_travel_times.sql`

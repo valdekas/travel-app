@@ -67,6 +67,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Need at least 2 activities' }, { status: 400 })
   }
 
+  console.log('[AutoSchedule] Activities received:', activities.length)
+  console.log('[AutoSchedule] Activities with coords:', activities.filter(a => a.lat && a.lng).length)
+
   // ── Step 1: Claude optimises the order ───────────────────────────────────────
 
   const anthropic = new Anthropic()
@@ -156,6 +159,8 @@ Include ALL ${activities.length} activities. Start the day around 09:00.`
 
     travelTimes.push({ fromId, toId, duration: walking.duration, distance: walking.distance, mode: 'walking' })
   }
+
+  console.log('[AutoSchedule] Travel times computed:', travelTimes.length)
 
   return NextResponse.json({ optimizedOrder, travelTimes })
 }

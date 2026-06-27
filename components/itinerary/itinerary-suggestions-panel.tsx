@@ -433,14 +433,19 @@ export function ItinerarySuggestionsPanel({
       const startIndex = count ?? 0
 
       const rows = items.map((s, i) => ({
-        day_id:      selectedDayId,
-        trip_id:     trip.id,
-        title:       s.name,
-        type:        activeCategory?.itemType ?? 'activity',
-        description: null,
-        start_time:  null,
-        cost:        0,
-        order_index: startIndex + i,
+        day_id:           selectedDayId,
+        trip_id:          trip.id,
+        title:            s.name,
+        type:             activeCategory?.itemType ?? 'activity',
+        description:      null,
+        start_time:       null,
+        cost:             0,
+        order_index:      startIndex + i,
+        latitude:         s.lat              ?? null,
+        longitude:        s.lng              ?? null,
+        location_name:    s.name             ?? null,
+        formatted_address: s.address         ?? null,
+        google_maps_url:  s.google_maps_url  ?? null,
       }))
 
       const { data, error } = await supabase
