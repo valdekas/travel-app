@@ -336,6 +336,41 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
 
   useEffect(() => { setSuggestions(initialSuggestions) }, [initialSuggestions])
 
+  // On mount: reset stale added_to_itinerary / added_to_places flags for items that no longer exist
+  useEffect(() => {
+    if (initialSuggestions.length === 0) return
+    async function resetStaleFlags() {
+      const [{ data: items }, { data: locs }] = await Promise.all([
+        supabase.from('itinerary_items').select('title').eq('trip_id', trip.id),
+        supabase.from('locations').select('name').eq('trip_id', trip.id),
+      ])
+      const itineraryNames = new Set((items ?? []).map((i: { title: string }) => i.title))
+      const locationNames  = new Set((locs  ?? []).map((l: { name:  string }) => l.name))
+
+      const staleItinerary = initialSuggestions.filter(s => s.added_to_itinerary && !itineraryNames.has(s.name))
+      const stalePlaces    = initialSuggestions.filter(s => s.added_to_places    && !locationNames.has(s.name))
+
+      if (staleItinerary.length > 0) {
+        await supabase.from('trip_suggestions')
+          .update({ added_to_itinerary: false })
+          .in('id', staleItinerary.map(s => s.id))
+        setSuggestions(prev => prev.map(s =>
+          staleItinerary.some(x => x.id === s.id) ? { ...s, added_to_itinerary: false } : s
+        ))
+      }
+      if (stalePlaces.length > 0) {
+        await supabase.from('trip_suggestions')
+          .update({ added_to_places: false })
+          .in('id', stalePlaces.map(s => s.id))
+        setSuggestions(prev => prev.map(s =>
+          stalePlaces.some(x => x.id === s.id) ? { ...s, added_to_places: false } : s
+        ))
+      }
+    }
+    resetStaleFlags()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.id])
+
   // Only show suggestions that have been enriched with TripAdvisor data
   const visibleSuggestions = suggestions.filter(s => s.photo_url && s.rating != null)
 

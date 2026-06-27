@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-06-27 (Bug fix: Stale "Added ✓" badges on Suggestion cards)
+
+### Fixed — `components/itinerary/itinerary-content.tsx`
+`deleteItem` now looks up the deleted activity's title before removing it from the DB, then fires a fire-and-forget Supabase update to reset `added_to_itinerary = false` in `trip_suggestions` where `trip_id` and `name` match. Silently ignores misses (no matching suggestion).
+
+### Fixed — `components/trips/places-content.tsx`
+`deleteLocation` now looks up the deleted location's name before removing it, then resets `added_to_places = false` in `trip_suggestions` by `trip_id` + `name` match. Same graceful-ignore pattern.
+
+### Added — `components/trips/suggestions-content.tsx`
+On mount (once per trip load), the Suggestions tab fetches current `itinerary_items.title` and `locations.name` for the trip, cross-checks them against suggestions where `added_to_itinerary` or `added_to_places` is `true`, and batch-resets any stale flags both in the DB and in local state. Handles edge cases: bulk deletes, direct DB changes, or any scenario where Parts 1/2 didn't fire.
+
+---
+
 ## 2026-06-26 (Settings: Currency preference applied to new trips)
 
 ### Changed — `app/(dashboard)/trips/new/page.tsx`

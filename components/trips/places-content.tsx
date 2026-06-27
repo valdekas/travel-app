@@ -615,8 +615,17 @@ export function PlacesContent({ trip, initialLocations }: PlacesContentProps) {
   }
 
   async function deleteLocation(id: string) {
+    const deletedLocation = locations.find(l => l.id === id)
     await supabase.from('locations').delete().eq('id', id)
     setLocations(prev => prev.filter(l => l.id !== id))
+    if (deletedLocation) {
+      supabase
+        .from('trip_suggestions')
+        .update({ added_to_places: false })
+        .eq('trip_id', trip.id)
+        .eq('name', deletedLocation.name)
+        .then(({ error }) => { if (error) console.error('Failed to reset suggestion flag:', error) })
+    }
     toast.success('Location deleted')
   }
 

@@ -797,10 +797,19 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
   }
 
   async function deleteItem(dayId: string, itemId: string) {
+    const deletedItem = days.flatMap(d => d.items ?? []).find(i => i.id === itemId)
     await supabase.from('itinerary_items').delete().eq('id', itemId)
     setDays(d => d.map(day =>
       day.id === dayId ? { ...day, items: day.items.filter(i => i.id !== itemId) } : day
     ))
+    if (deletedItem) {
+      supabase
+        .from('trip_suggestions')
+        .update({ added_to_itinerary: false })
+        .eq('trip_id', trip.id)
+        .eq('name', deletedItem.title)
+        .then(({ error }) => { if (error) console.error('Failed to reset suggestion flag:', error) })
+    }
     toast.success('Activity removed')
   }
 
