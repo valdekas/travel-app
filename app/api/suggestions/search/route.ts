@@ -1,29 +1,98 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const TA_API_KEY = process.env.TRIPADVISOR_API_KEY
-const TA_BASE    = 'https://api.content.tripadvisor.com/api/v1'
-const DELAY_MS   = 100
-const MAX_RESULTS = 10
+const TA_API_KEY          = process.env.TRIPADVISOR_API_KEY
+const GOOGLE_API_KEY      = process.env.GOOGLE_PLACES_API_KEY
+const TA_BASE             = 'https://api.content.tripadvisor.com/api/v1'
+const GOOGLE_GEOCODE_BASE = 'https://maps.googleapis.com/maps/api/geocode/json'
+const DELAY_MS            = 100
+const MAX_RESULTS         = 10
 
-// Maps panel category IDs → TA API category + optional search term prefix
-const TA_CATEGORY_MAP: Record<string, { taCategory: string; searchPrefix: string }> = {
-  // Places panel categories
-  'Restaurants':               { taCategory: 'restaurants', searchPrefix: '' },
-  'Attractions':               { taCategory: 'attractions', searchPrefix: '' },
-  'Viewpoints':                { taCategory: 'attractions', searchPrefix: 'viewpoints panoramic scenic' },
-  'Museums':                   { taCategory: 'attractions', searchPrefix: 'museums galleries' },
-  'Bars':                      { taCategory: 'restaurants', searchPrefix: 'bars cocktails nightlife' },
-  'Parks & Nature':            { taCategory: 'attractions', searchPrefix: 'parks nature gardens' },
-  // Itinerary panel categories
-  'restaurants and dining':        { taCategory: 'restaurants', searchPrefix: '' },
-  'sightseeing and landmarks':     { taCategory: 'attractions', searchPrefix: '' },
-  'guided tours and experiences':  { taCategory: 'attractions', searchPrefix: 'tours experiences' },
-  'shopping and markets':          { taCategory: 'attractions', searchPrefix: 'shopping markets' },
-  'nature and outdoor activities': { taCategory: 'attractions', searchPrefix: 'parks nature outdoor' },
-  'nightlife and entertainment':   { taCategory: 'restaurants', searchPrefix: 'bars nightlife entertainment' },
+// Maps panel category IDs → TA API category filter
+const TA_CATEGORY_MAP: Record<string, string> = {
+  'Restaurants':               'restaurants',
+  'Attractions':               'attractions',
+  'Viewpoints':                'attractions',
+  'Museums':                   'attractions',
+  'Bars':                      'restaurants',
+  'Parks & Nature':            'attractions',
+  'restaurants and dining':        'restaurants',
+  'sightseeing and landmarks':     'attractions',
+  'guided tours and experiences':  'attractions',
+  'shopping and markets':          'attractions',
+  'nature and outdoor activities': 'attractions',
+  'nightlife and entertainment':   'restaurants',
+}
+
+// Text-search fallback query prefixes for categories that need disambiguation
+const SEARCH_PREFIX_MAP: Record<string, string> = {
+  'Viewpoints':                'viewpoints panoramic scenic',
+  'Museums':                   'museums galleries',
+  'Bars':                      'bars cocktails nightlife',
+  'Parks & Nature':            'parks nature gardens',
+  'guided tours and experiences':  'tours experiences',
+  'shopping and markets':          'shopping markets',
+  'nature and outdoor activities': 'parks nature outdoor',
+  'nightlife and entertainment':   'bars nightlife entertainment',
 }
 
 function delay(ms: number) { return new Promise(res => setTimeout(res, ms)) }
+
+async function geocode(address: string): Promise<{ lat: number; lng: number } | null> {
+  if (!GOOGLE_API_KEY) return null
+  try {
+    const url  = `${GOOGLE_GEOCODE_BASE}?address=${encodeURIComponent(address)}&key=${GOOGLE_API_KEY}`
+    const res  = await fetch(url)
+    if (!res.ok) return null
+    const data = await res.json()
+    const loc  = data.results?.[0]?.geometry?.location
+    if (!loc) return null
+    return { lat: loc.lat, lng: loc.lng }
+  } catch {
+    return null
+  }
+}
+
+async function nearbySearch(
+  lat: number,
+  lng: number,
+  taCategory: string,
+  radius: number,
+): Promise<Array<{ location_id: string; name: string }>> {
+  const url = `${TA_BASE}/location/nearby_search` +
+    `?latLong=${lat},${lng}` +
+    `&category=${taCategory}` +
+    `&radius=${radius}` +
+    `&radiusUnit=km` +
+    `&language=en` +
+    `&key=${TA_API_KEY}`
+
+  const res = await fetch(url, { headers: { Accept: 'application/json' } })
+  if (!res.ok) {
+    console.error('[TA Search] Nearby search failed:', res.status, 'latLong:', lat, lng)
+    return []
+  }
+  const data = await res.json()
+  return ((data.data ?? []) as Array<{ location_id: string; name: string }>).slice(0, MAX_RESULTS)
+}
+
+async function textSearch(
+  searchQuery: string,
+  taCategory: string,
+): Promise<Array<{ location_id: string; name: string }>> {
+  const url = `${TA_BASE}/location/search` +
+    `?searchQuery=${encodeURIComponent(searchQuery)}` +
+    `&category=${taCategory}` +
+    `&language=en` +
+    `&key=${TA_API_KEY}`
+
+  const res = await fetch(url, { headers: { Accept: 'application/json' } })
+  if (!res.ok) {
+    console.error('[TA Search] Text search failed:', res.status, 'query:', searchQuery)
+    return []
+  }
+  const data = await res.json()
+  return ((data.data ?? []) as Array<{ location_id: string; name: string }>).slice(0, MAX_RESULTS)
+}
 
 export interface TaSearchResult {
   ta_location_id: string
@@ -45,37 +114,66 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'TripAdvisor API key not configured' }, { status: 500 })
   }
 
-  const { category, city, country, area } = await req.json() as {
+  const { category, city, country, area, tripLat, tripLng } = await req.json() as {
     category: string
     city:     string
     country:  string
     area?:    string | null
+    tripLat?: number | null
+    tripLng?: number | null
   }
 
-  const mapping = TA_CATEGORY_MAP[category] ?? { taCategory: 'attractions', searchPrefix: '' }
+  const taCategory = TA_CATEGORY_MAP[category] ?? 'attractions'
 
-  const locationTerm = area ? `${area}, ${city}` : `${city}, ${country}`
-  const searchQuery  = mapping.searchPrefix
-    ? `${mapping.searchPrefix} ${locationTerm}`
-    : locationTerm
+  // ── Step 1: Resolve coordinates ──────────────────────────────────────────────
+  //
+  // Priority:
+  //   1. Geocode the specific area (if provided) — tight 5km radius
+  //   2. Trip's own stored coordinates — city-wide 20km radius
+  //   3. Geocode the city — city-wide 20km radius
+  //   4. Text search fallback (no coordinates available)
 
-  // Step 1: Location search
-  const searchUrl = `${TA_BASE}/location/search?searchQuery=${encodeURIComponent(searchQuery)}&category=${mapping.taCategory}&language=en&key=${TA_API_KEY}`
-  const searchRes = await fetch(searchUrl, { headers: { Accept: 'application/json' } })
+  let coords: { lat: number; lng: number } | null = null
+  let searchRadius = 20  // km — used for whole-city searches
 
-  if (!searchRes.ok) {
-    console.error('[TA Search] Location search failed:', searchRes.status, 'query:', searchQuery)
-    return NextResponse.json({ results: [] })
+  if (area) {
+    coords = await geocode(`${area}, ${city}, ${country}`)
+    if (coords) searchRadius = 5
+    else console.warn('[TA Search] Area geocode failed for:', area, '— falling back to city coords')
   }
 
-  const searchData = await searchRes.json()
-  const locations  = (searchData.data ?? []).slice(0, MAX_RESULTS) as Array<{ location_id: string; name: string }>
+  if (!coords && tripLat != null && tripLng != null) {
+    coords = { lat: tripLat, lng: tripLng }
+  }
+
+  if (!coords) {
+    coords = await geocode(`${city}, ${country}`)
+  }
+
+  // ── Step 2: Search ────────────────────────────────────────────────────────────
+
+  let locations: Array<{ location_id: string; name: string }> = []
+
+  if (coords) {
+    locations = await nearbySearch(coords.lat, coords.lng, taCategory, searchRadius)
+    console.log(`[TA Search] Nearby ${taCategory} within ${searchRadius}km of ${coords.lat},${coords.lng} → ${locations.length} results`)
+  }
+
+  // Fallback: text search if nearby returned nothing
+  if (locations.length === 0) {
+    const prefix      = SEARCH_PREFIX_MAP[category] ?? ''
+    const locationTerm = area ? `${area}, ${city}` : `${city}, ${country}`
+    const searchQuery  = prefix ? `${prefix} ${locationTerm}` : locationTerm
+    console.warn('[TA Search] Nearby returned 0 results, falling back to text search:', searchQuery)
+    locations = await textSearch(searchQuery, taCategory)
+  }
 
   if (locations.length === 0) {
     return NextResponse.json({ results: [] })
   }
 
-  // Step 2: Enrich each result sequentially (details + photos)
+  // ── Step 3: Enrich each result (details + photos) ────────────────────────────
+
   const results: TaSearchResult[] = []
 
   for (const loc of locations) {
@@ -102,8 +200,8 @@ export async function POST(req: NextRequest) {
         const photo = photosData.data?.[0]
         if (photo) {
           photo_url =
-            photo.images?.large?.url   ??
-            photo.images?.medium?.url  ??
+            photo.images?.large?.url    ??
+            photo.images?.medium?.url   ??
             photo.images?.original?.url ??
             null
         }

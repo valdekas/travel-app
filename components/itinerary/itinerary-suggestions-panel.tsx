@@ -342,7 +342,9 @@ export function ItinerarySuggestionsPanel({
           category: cat.id,
           city,
           country: trip.country,
-          area: area || null,
+          area:    area || null,
+          tripLat: trip.lat ?? null,
+          tripLng: trip.lng ?? null,
         }),
       })
       const data = await res.json()

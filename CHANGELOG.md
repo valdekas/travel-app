@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-06-27 (Suggestions panels: Fix search to use TripAdvisor nearby_search)
+
+### Changed — `app/api/suggestions/search/route.ts`
+Replaced text-based `location/search` with coordinate-based `location/nearby_search`.
+
+**Coordinate resolution (in priority order):**
+1. If `area` provided → Google Geocoding API geocodes `"{area}, {city}, {country}"` → 5km radius nearby search
+2. Trip's own `lat/lng` (passed from panel as `tripLat`/`tripLng`) → 20km radius nearby search
+3. Google Geocoding of `"{city}, {country}"` → 20km radius nearby search
+4. Text search fallback (last resort if no coordinates available or nearby returns 0 results)
+
+`GOOGLE_PLACES_API_KEY` is used server-side for geocoding (never exposed to client).
+
+### Changed — `components/trips/places-suggestions-panel.tsx`
+Fetch body now includes `tripLat: trip.lat ?? null` and `tripLng: trip.lng ?? null` for use as fallback city coordinates.
+
+### Changed — `components/itinerary/itinerary-suggestions-panel.tsx`
+Same change as places panel.
+
+---
+
 ## 2026-06-27 (Suggestions panels: Replace Claude AI with TripAdvisor direct search)
 
 ### Added — `app/api/suggestions/search/route.ts`
