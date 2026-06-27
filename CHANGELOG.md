@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-06-27 (Suggestions panels: Replace Claude AI with TripAdvisor direct search)
+
+### Added — `app/api/suggestions/search/route.ts`
+New POST endpoint. Accepts `{ category, city, country, area }`. Maps 12 category IDs (6 places + 6 itinerary) to TripAdvisor `category` filter + optional `searchPrefix` for specialised terms (e.g. `"viewpoints panoramic"`, `"bars cocktails nightlife"`). Runs a location search, takes up to 10 results, then enriches each sequentially with details + photos (100ms delay). Returns `TaSearchResult[]` with `ta_location_id`, `name`, `address`, `rating`, `reviews_count`, `photo_url`, `google_maps_url`, `website`, `price_level`.
+
+### Changed — `components/trips/places-suggestions-panel.tsx`
+- Replaced `PlaceSuggestion` (Claude text) type with `TaResult` (TripAdvisor data)
+- `fetchResults` now calls `/api/suggestions/search` instead of `/api/recommendations`
+- Cache key updated to `suggestions_ta_{tripId}_{catId}_places_{area}` to distinguish from old Claude cache
+- `SuggestionCard` replaced with `TaCard`: 112px photo (gradient fallback), rating + review count, address line, branded Maps/Web/TA external links (stopPropagation so they don't toggle selection), price badge (same normalizer as Suggestions tab)
+- `SkeletonCard` updated to match photo-based layout
+- Empty state: "No results found — try a different area or category" with "Change area" button
+- Header subtitle updated: "find real places on TripAdvisor"
+- Loading subtitle: "Searching TripAdvisor…"
+
+### Changed — `components/itinerary/itinerary-suggestions-panel.tsx`
+Same changes as places panel. Day selector and `handleAdd` flow preserved unchanged. `start_time` and `description` set to null (TripAdvisor doesn't return these; user fills them in the activity form if needed).
+
+---
+
 ## 2026-06-27 (Bug fix: Stale "Added ✓" badges on Suggestion cards)
 
 ### Fixed — `components/itinerary/itinerary-content.tsx`

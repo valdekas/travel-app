@@ -6,11 +6,13 @@ import { cn } from '@/lib/utils'
 import { getCachedSuggestions, setCachedSuggestions } from '@/lib/utils/suggestions-cache'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PlacesAutocomplete } from '@/components/ui/places-autocomplete'
 import { toast } from 'sonner'
-import { Sparkles, Loader2, RefreshCw, ChevronLeft, X } from 'lucide-react'
+import {
+  Sparkles, Loader2, RefreshCw, ChevronLeft, X,
+  MapPin, Star, Globe, Check,
+} from 'lucide-react'
 
 // ── Category definitions ───────────────────────────────────────────────────────
 
@@ -31,18 +33,21 @@ const CATEGORIES: PlaceCategory[] = [
   { id: 'Parks & Nature', emoji: '🌿', name: 'Parks & Nature', description: 'Parks, gardens, beaches',    locationType: 'attraction' },
 ]
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// ── TripAdvisor result type ────────────────────────────────────────────────────
 
-interface PlaceSuggestion {
-  name: string
-  category: string
-  emoji: string
-  description: string
-  whyVisit: string
-  priceRange: string
-  bestTimeToVisit: string
-  mustTry: string | null
-  tip: string
+interface TaResult {
+  ta_location_id: string
+  name:           string
+  address:        string
+  lat:            number | null
+  lng:            number | null
+  rating:         number | null
+  reviews_count:  number | null
+  photo_url:      string | null
+  google_maps_url: string
+  website:        string | null
+  price_level:    string | null
+  category:       string
 }
 
 type Step = 'categories' | 'area' | 'results'
@@ -55,121 +60,184 @@ function extractCity(trip: Trip): string {
   return trip.country || 'the destination'
 }
 
-function tripDurationDays(trip: Trip): number {
-  if (!trip.start_date || !trip.end_date) return 7
-  return Math.max(1, Math.round(
-    (new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / 86_400_000
-  ) + 1)
+const categoryGradients: Record<string, string> = {
+  'Restaurants':    'from-orange-400 to-rose-500',
+  'Attractions':    'from-violet-400 to-indigo-500',
+  'Viewpoints':     'from-sky-400 to-blue-500',
+  'Museums':        'from-amber-400 to-orange-500',
+  'Bars':           'from-purple-500 to-pink-500',
+  'Parks & Nature': 'from-emerald-400 to-teal-500',
+}
+
+const priceColors: Record<string, string> = {
+  'Free': 'bg-green-500 text-white',
+  '$':    'bg-gray-500/80 text-white',
+  '$$':   'bg-blue-500/80 text-white',
+  '$$$':  'bg-amber-500/80 text-white',
+  '$$$$': 'bg-purple-500/80 text-white',
+}
+
+function normalizePrice(raw: string): string {
+  if (/free/i.test(raw))               return 'Free'
+  if (raw.startsWith('$$$$'))          return '$$$$'
+  if (raw.startsWith('$$$'))           return '$$$'
+  if (raw.startsWith('$$'))            return '$$'
+  if (raw.startsWith('$'))             return '$'
+  if (/budget|cheap/i.test(raw))       return '$'
+  if (/mid|moderate/i.test(raw))       return '$$'
+  if (/expensive|upscale/i.test(raw))  return '$$$'
+  if (/luxury|fine.?dining/i.test(raw)) return '$$$$'
+  return raw
 }
 
 // ── Skeleton ───────────────────────────────────────────────────────────────────
 
 function SkeletonCard() {
   return (
-    <div className="animate-pulse rounded-xl border border-border/50 p-3.5">
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-lg bg-muted flex-shrink-0" />
-        <div className="flex-1 space-y-2 pt-0.5">
-          <div className="flex items-center gap-2">
-            <div className="h-3.5 bg-muted rounded w-2/5" />
-            <div className="h-4 bg-muted rounded w-12" />
-            <div className="h-4 bg-muted rounded w-8" />
-          </div>
-          <div className="h-3 bg-muted rounded w-full" />
-          <div className="h-3 bg-muted rounded w-4/5" />
-          <div className="h-3 bg-muted rounded w-3/5" />
-          <div className="flex gap-3">
-            <div className="h-3 bg-muted rounded w-24" />
-            <div className="h-3 bg-muted rounded w-28" />
-          </div>
+    <div className="animate-pulse rounded-xl border border-border/50 overflow-hidden">
+      <div className="h-28 bg-muted" />
+      <div className="p-3 space-y-2">
+        <div className="h-3.5 bg-muted rounded w-3/4" />
+        <div className="flex items-center gap-2">
+          <div className="h-3 bg-muted rounded w-8" />
+          <div className="h-3 bg-muted rounded w-24" />
+        </div>
+        <div className="h-3 bg-muted rounded w-full" />
+        <div className="flex gap-1.5 pt-0.5">
+          <div className="h-7 bg-muted rounded w-14" />
+          <div className="h-7 bg-muted rounded w-10" />
+          <div className="h-7 bg-muted rounded w-20" />
         </div>
       </div>
     </div>
   )
 }
 
-// ── Suggestion card ────────────────────────────────────────────────────────────
+// ── TripAdvisor result card ────────────────────────────────────────────────────
 
-function SuggestionCard({
-  suggestion,
+function TaCard({
+  result,
   selected,
   onToggle,
 }: {
-  suggestion: PlaceSuggestion
+  result: TaResult
   selected: boolean
   onToggle: () => void
 }) {
+  const [photoError, setPhotoError] = useState(false)
+  const showPhoto = result.photo_url && !photoError
+  const gradient  = categoryGradients[result.category] ?? 'from-slate-400 to-slate-600'
+  const normalized = result.price_level ? normalizePrice(result.price_level) : null
+
   return (
-    <button
+    <div
       onClick={onToggle}
       className={cn(
-        'w-full text-left rounded-xl border p-3.5 transition-all duration-150',
+        'rounded-xl border overflow-hidden transition-all duration-150 cursor-pointer select-none',
         selected
-          ? 'border-violet-400 bg-violet-50 dark:border-violet-600 dark:bg-violet-950/50 shadow-sm'
-          : 'border-border/60 hover:border-violet-200 hover:bg-muted/30 dark:hover:border-violet-800',
+          ? 'border-violet-400 dark:border-violet-600 shadow-sm ring-1 ring-violet-400/30'
+          : 'border-border/60 hover:border-violet-300 dark:hover:border-violet-700',
       )}
     >
-      <div className="flex items-start gap-3">
-        <div className={cn(
-          'w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0 transition-colors',
-          selected ? 'bg-violet-100 dark:bg-violet-900' : 'bg-muted',
-        )}>
-          {suggestion.emoji}
-        </div>
-        <div className="flex-1 min-w-0">
-          {/* Name + badges */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-medium text-sm">{suggestion.name}</span>
-            <Badge variant="outline" className="text-[10px] capitalize shrink-0">
-              {suggestion.category}
-            </Badge>
-            {suggestion.priceRange && (
-              <Badge variant="outline" className="text-[10px] shrink-0 font-mono tracking-tight">
-                {suggestion.priceRange}
-              </Badge>
-            )}
-            {selected && (
-              <span className="ml-auto text-[11px] font-semibold text-violet-600 dark:text-violet-400 shrink-0">
-                ✓ Selected
-              </span>
-            )}
+      {/* Photo / gradient */}
+      <div className="relative h-28 shrink-0 overflow-hidden">
+        {showPhoto ? (
+          <img
+            src={result.photo_url!}
+            alt={result.name}
+            className="w-full h-full object-cover"
+            onError={() => setPhotoError(true)}
+          />
+        ) : (
+          <div className={cn('w-full h-full bg-gradient-to-br flex items-center justify-center', gradient)}>
+            <span className="text-3xl opacity-70" aria-hidden>📍</span>
           </div>
-
-          {/* Description */}
-          <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-            {suggestion.description}
-          </p>
-
-          {/* Why visit */}
-          {suggestion.whyVisit && (
-            <p className="text-[11px] text-muted-foreground/70 italic mt-0.5 leading-relaxed">
-              {suggestion.whyVisit}
-            </p>
-          )}
-
-          {/* Best time + tip */}
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
-            {suggestion.bestTimeToVisit && (
-              <span className="text-[11px] text-muted-foreground">
-                🕐 {suggestion.bestTimeToVisit}
-              </span>
-            )}
-            {suggestion.tip && (
-              <span className="text-[11px] text-muted-foreground">
-                💡 {suggestion.tip}
-              </span>
-            )}
+        )}
+        {/* Selected checkmark */}
+        {selected && (
+          <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-violet-600 flex items-center justify-center shadow-md">
+            <Check className="h-3 w-3 text-white" />
           </div>
-
-          {/* Must try */}
-          {suggestion.mustTry && (
-            <p className="text-[11px] text-muted-foreground mt-1">
-              🍽️ Must try: {suggestion.mustTry}
-            </p>
-          )}
-        </div>
+        )}
+        {/* Price badge */}
+        {normalized && (
+          <span className={cn(
+            'absolute top-2 right-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full backdrop-blur-sm',
+            priceColors[normalized] ?? 'bg-gray-500/80 text-white',
+          )}>
+            {normalized}
+          </span>
+        )}
       </div>
-    </button>
+
+      {/* Body */}
+      <div className="p-3 space-y-1">
+        <h3 className="font-semibold text-sm leading-snug">{result.name}</h3>
+
+        {result.rating != null && (
+          <div className="flex items-center gap-1.5">
+            <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
+            <span className="text-xs font-semibold">{result.rating}</span>
+            {result.reviews_count != null && (
+              <span className="text-[10px] text-muted-foreground">
+                · {result.reviews_count.toLocaleString()} reviews
+              </span>
+            )}
+          </div>
+        )}
+
+        {result.address && (
+          <p className="flex items-start gap-1 text-[11px] text-muted-foreground leading-snug">
+            <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
+            <span className="line-clamp-1">{result.address}</span>
+          </p>
+        )}
+
+        {/* External links — stopPropagation so they don't trigger selection */}
+        {(result.google_maps_url || result.website || result.ta_location_id) && (
+          <div
+            className="flex gap-1.5 pt-1"
+            onClick={e => e.stopPropagation()}
+          >
+            {result.google_maps_url && (
+              <a
+                href={result.google_maps_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-7 px-2 flex items-center gap-1 text-[11px] font-medium border border-border rounded-md hover:bg-[#EA4335]/8 hover:border-[#EA4335]/40 transition-colors"
+              >
+                <svg className="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="#EA4335" aria-hidden>
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                </svg>
+                <span className="text-[#EA4335]">Maps</span>
+              </a>
+            )}
+            {result.website && (
+              <a
+                href={result.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-7 px-2 flex items-center gap-1 text-[11px] text-muted-foreground border border-border rounded-md hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                <Globe className="h-3 w-3" />
+                Web
+              </a>
+            )}
+            {result.ta_location_id && (
+              <a
+                href={`https://www.tripadvisor.com/Location_Review-d${result.ta_location_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-7 px-2 flex items-center gap-1 text-[11px] font-medium border border-border rounded-md hover:bg-[#34E0A1]/10 hover:border-[#34E0A1]/50 transition-colors"
+              >
+                <span className="text-sm leading-none" aria-hidden>🦉</span>
+                <span className="text-[#00AA6C] dark:text-[#34E0A1] text-[11px]">TA</span>
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -206,7 +274,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
   const [selectedArea, setSelectedArea]     = useState<string | null>(null)
   const [loading, setLoading]               = useState(false)
   const [error, setError]                   = useState<string | null>(null)
-  const [suggestions, setSuggestions]       = useState<PlaceSuggestion[]>([])
+  const [results, setResults]               = useState<TaResult[]>([])
   const [selected, setSelected]             = useState<Set<number>>(new Set())
   const [adding, setAdding]                 = useState(false)
   const supabase = createClient()
@@ -218,7 +286,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
     setActiveCategory(null)
     setAreaInput('')
     setSelectedArea(null)
-    setSuggestions([])
+    setResults([])
     setSelected(new Set())
     setError(null)
   }
@@ -227,45 +295,42 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
     setActiveCategory(cat)
     setAreaInput('')
     setSelectedArea(null)
-    setSuggestions([])
+    setResults([])
     setSelected(new Set())
     setError(null)
     setStep('area')
   }
 
-  async function fetchSuggestions(cat: PlaceCategory, area: string | null) {
+  async function fetchResults(cat: PlaceCategory, area: string | null) {
     setStep('results')
     setError(null)
-    setSuggestions([])
+    setResults([])
     setSelected(new Set())
 
-    const cacheKey = `suggestions_${trip.id}_${cat.id}_places_${area || 'all'}`
-    const cached = getCachedSuggestions<PlaceSuggestion>(cacheKey)
+    const cacheKey = `suggestions_ta_${trip.id}_${cat.id}_places_${area || 'all'}`
+    const cached = getCachedSuggestions<TaResult>(cacheKey)
     if (cached) {
-      setSuggestions(cached)
+      setResults(cached)
       return
     }
 
     setLoading(true)
     try {
-      const res = await fetch('/api/recommendations', {
+      const res = await fetch('/api/suggestions/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'places',
-          destination: city,
-          country: trip.country,
-          duration: tripDurationDays(trip),
           category: cat.id,
-          area: area || undefined,
-          existingItems: existingNames,
+          city,
+          country: trip.country,
+          area: area || null,
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Failed to fetch suggestions')
-      const items: PlaceSuggestion[] = data.suggestions ?? []
+      if (!res.ok) throw new Error(data.error ?? 'Search failed')
+      const items: TaResult[] = data.results ?? []
       setCachedSuggestions(cacheKey, items)
-      setSuggestions(items)
+      setResults(items)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
     } finally {
@@ -278,7 +343,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
     setActiveCategory(null)
     setAreaInput('')
     setSelectedArea(null)
-    setSuggestions([])
+    setResults([])
     setSelected(new Set())
     setError(null)
     setLoading(false)
@@ -286,7 +351,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
 
   function goBackToArea() {
     setStep('area')
-    setSuggestions([])
+    setResults([])
     setSelected(new Set())
     setError(null)
     setLoading(false)
@@ -306,7 +371,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
   }
 
   async function handleAdd() {
-    const items = [...selected].map(i => suggestions[i])
+    const items = [...selected].map(i => results[i])
     if (!items.length) return
     setAdding(true)
     try {
@@ -314,7 +379,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
         trip_id:        trip.id,
         name:           s.name,
         type:           activeCategory?.locationType ?? 'other',
-        description:    s.description,
+        description:    null,
         estimated_cost: 0,
         visited:        false,
         order_index:    existingNames.length + i,
@@ -331,7 +396,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
     }
   }
 
-  const selCount = selected.size
+  const selCount    = selected.size
   const locationBias = trip.lat != null && trip.lng != null
     ? { lat: trip.lat, lng: trip.lng }
     : undefined
@@ -363,7 +428,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
 
             {step === 'categories' && (
               <p className="text-xs text-muted-foreground mt-0.5">
-                What are you looking for? Choose a category to get 15 curated suggestions.
+                What are you looking for? Choose a category to find real places on TripAdvisor.
               </p>
             )}
             {(step === 'area' || step === 'results') && activeCategory && (
@@ -383,8 +448,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
                 )}
                 {step === 'results' && loading && (
                   <span className="text-xs text-muted-foreground">
-                    · Finding the best {activeCategory.name.toLowerCase()}
-                    {selectedArea ? ` near ${selectedArea}` : ` in ${city}`}…
+                    · Searching TripAdvisor{selectedArea ? ` near ${selectedArea}` : ` in ${city}`}…
                   </span>
                 )}
               </div>
@@ -406,7 +470,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
                   setSelectedArea(place.name)
                   setAreaInput(place.name)
                 }}
-                placeholder={`e.g. River North, Millennium Park, Old Town…`}
+                placeholder="e.g. River North, Millennium Park, Old Town…"
                 locationBias={locationBias}
               />
 
@@ -425,9 +489,9 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
                 </div>
               )}
 
-              <div className="mt-4 flex items-center justify-between">
+              <div className="mt-4">
                 <button
-                  onClick={() => fetchSuggestions(activeCategory!, null)}
+                  onClick={() => fetchResults(activeCategory!, null)}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2 decoration-muted-foreground/40"
                 >
                   Skip — search all of {city}
@@ -435,7 +499,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
               </div>
 
               <Button
-                onClick={() => fetchSuggestions(activeCategory!, selectedArea)}
+                onClick={() => fetchResults(activeCategory!, selectedArea)}
                 className="w-full mt-4 bg-violet-600 hover:bg-violet-700 text-white"
               >
                 <Sparkles className="h-4 w-4 mr-2" />
@@ -464,15 +528,15 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
 
               {/* Step 3: Results */}
               {step === 'results' && (
-                <div className="px-5 py-4 space-y-2.5">
-                  {loading && Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+                <div className="px-4 py-4 space-y-2.5">
+                  {loading && Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
 
                   {error && (
                     <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-5 text-center">
                       <p className="text-sm text-destructive mb-3">{error}</p>
                       <Button
                         variant="outline" size="sm"
-                        onClick={() => activeCategory && fetchSuggestions(activeCategory, selectedArea)}
+                        onClick={() => activeCategory && fetchResults(activeCategory, selectedArea)}
                         className="gap-1.5"
                       >
                         <RefreshCw className="h-3.5 w-3.5" /> Try again
@@ -480,14 +544,24 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
                     </div>
                   )}
 
-                  {!loading && !error && suggestions.length === 0 && (
-                    <div className="py-12 text-center text-muted-foreground text-sm">No suggestions returned.</div>
+                  {!loading && !error && results.length === 0 && (
+                    <div className="py-12 text-center space-y-2">
+                      <p className="text-sm font-medium">No results found</p>
+                      <p className="text-xs text-muted-foreground">
+                        No {activeCategory?.name.toLowerCase()} found
+                        {selectedArea ? ` near ${selectedArea}` : ` in ${city}`}.
+                        Try a different area or category.
+                      </p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={goBackToArea}>
+                        Change area
+                      </Button>
+                    </div>
                   )}
 
-                  {!loading && !error && suggestions.map((s, i) => (
-                    <SuggestionCard
-                      key={i}
-                      suggestion={s}
+                  {!loading && !error && results.map((r, i) => (
+                    <TaCard
+                      key={r.ta_location_id}
+                      result={r}
                       selected={selected.has(i)}
                       onToggle={() => toggle(i)}
                     />
@@ -498,7 +572,7 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
           )}
 
           {/* Footer — results step only */}
-          {step === 'results' && !loading && !error && suggestions.length > 0 && (
+          {step === 'results' && !loading && !error && results.length > 0 && (
             <div className="px-5 py-4 border-t border-border/50 shrink-0 flex gap-3">
               <Button variant="outline" onClick={() => setOpen(false)} className="flex-1" disabled={adding}>
                 Cancel
