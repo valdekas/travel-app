@@ -333,6 +333,8 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
   const [dayPickerSuggestion, setDayPickerSuggestion] = useState<TripSuggestion | null>(null)
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null)
   const [addingToItinerary, setAddingToItinerary] = useState(false)
+  const [liveDays, setLiveDays] = useState(itineraryDays)
+  const [daysLoading, setDaysLoading] = useState(false)
 
   useEffect(() => { setSuggestions(initialSuggestions) }, [initialSuggestions])
 
@@ -433,6 +435,20 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
     } finally {
       setAddingIds(prev => { const n = new Set(prev); n.delete(suggestion.id); return n })
     }
+  }
+
+  /* ── Open day picker — re-fetches live days so deleted/added days are current ── */
+
+  async function openDayPicker(s: TripSuggestion) {
+    setDayPickerSuggestion(s)
+    setDaysLoading(true)
+    const { data } = await supabase
+      .from('itinerary_days')
+      .select('id, day_number, date, title')
+      .eq('trip_id', trip.id)
+      .order('day_number', { ascending: true })
+    if (data) setLiveDays(data as typeof liveDays)
+    setDaysLoading(false)
   }
 
   /* ── Add to Itinerary ──────────────────────────────────────────── */
@@ -607,7 +623,7 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
                       key={s.id}
                       suggestion={suggestions.find(x => x.id === s.id) ?? s}
                       onAddToPlaces={handleAddToPlaces}
-                      onOpenDayPicker={setDayPickerSuggestion}
+                      onOpenDayPicker={openDayPicker}
                       adding={addingIds.has(s.id)}
                     />
                   ))}
@@ -669,7 +685,7 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
                         <SuggestionCard
                           suggestion={suggestions.find(x => x.id === s.id) ?? s}
                           onAddToPlaces={handleAddToPlaces}
-                          onOpenDayPicker={setDayPickerSuggestion}
+                          onOpenDayPicker={openDayPicker}
                           adding={addingIds.has(s.id)}
                         />
                       </div>
@@ -716,7 +732,13 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
                 Choose which day to add <strong className="text-foreground">{dayPickerSuggestion.name}</strong> to:
               </p>
 
-              {itineraryDays.length === 0 ? (
+              {daysLoading ? (
+                <div className="space-y-1.5">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-14 rounded-xl bg-muted animate-pulse" />
+                  ))}
+                </div>
+              ) : liveDays.length === 0 ? (
                 <div className="text-center py-6 px-4 rounded-xl bg-muted/50">
                   <p className="text-sm text-muted-foreground">
                     No itinerary days yet. Add days in the Itinerary tab first.
@@ -724,7 +746,7 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
                 </div>
               ) : (
                 <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                  {itineraryDays.map(day => {
+                  {liveDays.map(day => {
                     const dateLabel = day.date
                       ? format(parseISO(day.date), 'EEE, MMM d')
                       : null
@@ -770,7 +792,7 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
                 </Button>
                 <Button
                   className="flex-1"
-                  disabled={!selectedDayId || addingToItinerary}
+                  disabled={daysLoading || !selectedDayId || addingToItinerary}
                   onClick={handleAddToItinerary}
                 >
                   {addingToItinerary

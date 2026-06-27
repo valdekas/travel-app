@@ -295,6 +295,7 @@ export function ItinerarySuggestionsPanel({
   const [selected, setSelected]             = useState<Set<number>>(new Set())
   const [selectedDayId, setSelectedDayId]   = useState<string>('')
   const [adding, setAdding]                 = useState(false)
+  const [liveDays, setLiveDays]             = useState(days)
   const supabase = createClient()
   const city = extractCity(trip)
 
@@ -308,6 +309,19 @@ export function ItinerarySuggestionsPanel({
     setSelected(new Set())
     setError(null)
     setSelectedDayId(days.length === 1 ? days[0].id : '')
+
+    // Re-fetch live days so deleted/added days are current
+    supabase
+      .from('itinerary_days')
+      .select('id, day_number, date')
+      .eq('trip_id', trip.id)
+      .order('day_number', { ascending: true })
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setLiveDays(data as typeof liveDays)
+          setSelectedDayId(data.length === 1 ? data[0].id : '')
+        }
+      })
   }
 
   function selectCategory(cat: ActivityCategory) {
@@ -398,8 +412,12 @@ export function ItinerarySuggestionsPanel({
 
     setAdding(true)
     try {
-      const targetDay  = days.find(d => d.id === selectedDayId)
-      const startIndex = targetDay?.items?.length ?? 0
+      // Query live count so order_index is correct even if items were added/removed
+      const { count } = await supabase
+        .from('itinerary_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('day_id', selectedDayId)
+      const startIndex = count ?? 0
 
       const rows = items.map((s, i) => ({
         day_id:      selectedDayId,
@@ -429,7 +447,7 @@ export function ItinerarySuggestionsPanel({
   }
 
   const selCount    = selected.size
-  const needsDayPick = days.length > 1
+  const needsDayPick = liveDays.length > 1
   const canAdd       = selCount > 0 && (!needsDayPick || !!selectedDayId)
   const locationBias = trip.lat != null && trip.lng != null
     ? { lat: trip.lat, lng: trip.lng }
@@ -624,9 +642,9 @@ export function ItinerarySuggestionsPanel({
                       <SelectValue placeholder="Select a day…" />
                     </SelectTrigger>
                     <SelectContent>
-                      {days.map((day, idx) => (
+                      {liveDays.map((day, idx) => (
                         <SelectItem key={day.id} value={day.id}>
-                          {dayLabel(day, idx)}
+                          {dayLabel(day as ItineraryDay, idx)}
                         </SelectItem>
                       ))}
                     </SelectContent>

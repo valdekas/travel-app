@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-06-27 (Fix stale day list in Suggestions day picker)
+
+### Changed — `components/trips/suggestions-content.tsx`
+- Added `liveDays` state (initialized from server-fetched `itineraryDays`)
+- Added `openDayPicker` async function: sets the selected suggestion immediately (dialog opens), then re-fetches `itinerary_days` from Supabase and updates `liveDays`
+- Day picker dialog shows 3 skeleton placeholders while re-fetching; "Add to Day" button disabled during fetch
+- Dialog uses `liveDays` instead of the static `itineraryDays` prop
+
+### Changed — `components/itinerary/itinerary-suggestions-panel.tsx`
+- Added `liveDays` state (initialized from `days` prop)
+- `openPanel` now fires a background re-fetch of `itinerary_days` and updates `liveDays` + auto-selects the single day if there's only one
+- Day `<Select>` in footer renders `liveDays`; `needsDayPick` uses `liveDays.length`
+- `handleAdd` queries live item count from `itinerary_items` instead of using stale `items.length` for `order_index`
+
+---
+
+## 2026-06-27 (Fix accidental day deletion UX)
+
+### Changed — `components/itinerary/itinerary-content.tsx`
+- Day header: replaced standalone red 🗑 trash button with a neutral ⋯ `DropdownMenu`; "Delete day" appears as a destructive item inside — requires two deliberate taps to trigger
+- Confirm dialog for day deletion: description now shows exact activity count ("all 3 activities"); confirm button label changed from "Delete" to "Delete Day"
+- Right-side button group gap increased from `gap-1` (4px) to `gap-2` (8px) for clearer touch separation on mobile
+
+---
+
 ## 2026-06-27 (Suggestions panels: Fix search to use TripAdvisor nearby_search)
 
 ### Changed — `app/api/suggestions/search/route.ts`
