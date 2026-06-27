@@ -108,6 +108,10 @@ export interface ItineraryItem {
   longitude?: number | null
   google_place_id?: string
   google_maps_url?: string
+  // Auto-schedule travel time fields (from migration 018)
+  travel_time_to_next?: string | null
+  travel_distance_to_next?: string | null
+  travel_mode_to_next?: string | null
   created_at: string
   updated_at: string
   location?: Location

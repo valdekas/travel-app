@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-06-27 (✨ Auto-schedule itinerary days)
+
+### Added — `supabase/migrations/018_itinerary_travel_times.sql`
+Three new nullable columns on `itinerary_items`: `travel_time_to_next`, `travel_distance_to_next`, `travel_mode_to_next`.
+
+### Added — `app/api/itinerary/auto-schedule/route.ts`
+POST endpoint accepting `{ dayId, tripId, activities, city, country }`.
+1. Claude (Haiku) optimises activity order for the day and suggests start times (museums morning, lunch 12-13, dinner 19+).
+2. Google Maps Directions API computes travel time + distance between each consecutive pair of activities that have coordinates. Tries walking first; switches to transit/driving if > 20 min walk.
+3. Returns `{ optimizedOrder, travelTimes }`.
+
+### Changed — `lib/types/index.ts`
+Added `travel_time_to_next`, `travel_distance_to_next`, `travel_mode_to_next` optional fields to `ItineraryItem`.
+
+### Changed — `components/itinerary/itinerary-content.tsx`
+- **✨ Schedule button** in day header (desktop, visible when 2+ activities) and in ⋯ dropdown (mobile). Shows loading spinner while calling the API.
+- **Preview dialog**: shows reordered activities with suggested times and travel time connectors (🚶/🚗/🚌 + duration + distance) between each pair. "Cancel" / "Apply Schedule" actions.
+- **Apply**: writes `order_index`, `start_time`, and travel time fields to DB + updates local state. Manual drag-and-drop remains fully functional after applying.
+- **Stale hint**: drag-and-drop now clears `travel_time_*` columns (DB + state) for the reordered day and shows "♻️ Travel times cleared — re-run ✨ Schedule to update".
+- **Travel time connectors** displayed between consecutive activity cards in the day view.
+
+---
+
 ## 2026-06-27 (Fix itinerary day date calculation)
 
 ### Changed — `components/itinerary/itinerary-content.tsx`

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, Fragment } from 'react'
 import {
   DndContext, DragOverlay, closestCenter,
   PointerSensor, KeyboardSensor, useSensor, useSensors,
@@ -33,7 +33,7 @@ import { ItinerarySuggestionsPanel } from '@/components/itinerary/itinerary-sugg
 import { toast } from 'sonner'
 import {
   Plus, Calendar, Trash2, Loader2, MapPin,
-  ExternalLink, Pencil, Clock, GripVertical, MoreVertical, ChevronDown, CheckCircle2,
+  ExternalLink, Pencil, Clock, GripVertical, MoreVertical, ChevronDown, CheckCircle2, Sparkles,
 } from 'lucide-react'
 import { parseISO, addDays, format } from 'date-fns'
 import { cn } from '@/lib/utils'
@@ -323,11 +323,12 @@ interface SortableCardProps {
   item: ItineraryItem
   currency: string
   isLast: boolean
+  hasConnector: boolean
   onEdit: (item: ItineraryItem) => void
   onDelete: (id: string) => void
 }
 
-function SortableActivityCard({ item, currency, isLast, onEdit, onDelete }: SortableCardProps) {
+function SortableActivityCard({ item, currency, isLast, hasConnector, onEdit, onDelete }: SortableCardProps) {
   const {
     attributes,
     listeners,
@@ -349,7 +350,8 @@ function SortableActivityCard({ item, currency, isLast, onEdit, onDelete }: Sort
       {...attributes}
       className={cn(
         'flex gap-2 group',
-        !isLast && 'mb-3',
+        !isLast && !hasConnector && 'mb-3',
+        !isLast && hasConnector && 'mb-0',
         isDragging && 'opacity-40',
       )}
     >
@@ -413,13 +415,17 @@ interface DayListProps {
   onDelete: (dayId: string, itemId: string) => void
   onDeleteDay: (dayId: string) => void
   onToggleComplete: (dayId: string) => void
+  onAutoSchedule: (dayId: string) => void
+  isScheduling: boolean
+  hasStaleSchedule: boolean
   dayIndex: number
   sensors: ReturnType<typeof useSensors>
 }
 
 function DayCard({
   day, currency, onDragStart, onDragEnd, onDragCancel,
-  activeItem, onOpenAdd, onEdit, onDelete, onDeleteDay, onToggleComplete, dayIndex, sensors,
+  activeItem, onOpenAdd, onEdit, onDelete, onDeleteDay, onToggleComplete,
+  onAutoSchedule, isScheduling, hasStaleSchedule, dayIndex, sensors,
 }: DayListProps) {
   const [collapsed, setCollapsed] = useState(false)
   const isCompleted = day.is_completed ?? false
@@ -492,6 +498,23 @@ function DayCard({
               <CheckCircle2 className="h-4 w-4" />
             </Button>
 
+            {/* ✨ Schedule button — desktop, only when 2+ activities */}
+            {sorted.length >= 2 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden sm:flex h-8 px-2.5 gap-1.5 text-xs text-violet-600 border-violet-200 hover:bg-violet-50 hover:text-violet-700 dark:text-violet-400 dark:border-violet-800 dark:hover:bg-violet-950/50 flex-shrink-0"
+                onClick={() => onAutoSchedule(day.id)}
+                disabled={isScheduling}
+              >
+                {isScheduling
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Sparkles className="h-3.5 w-3.5" />
+                }
+                {isScheduling ? 'Scheduling…' : 'Schedule'}
+              </Button>
+            )}
+
             {/* Collapse chevron */}
             <Button
               variant="ghost" size="icon"
@@ -505,7 +528,7 @@ function DayCard({
               )} />
             </Button>
 
-            {/* Day overflow menu — delete is hidden here to prevent accidental taps */}
+            {/* Day overflow menu — delete + mobile schedule */}
             <DropdownMenu>
               <DropdownMenuTrigger render={
                 <Button
@@ -516,7 +539,20 @@ function DayCard({
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               } />
-              <DropdownMenuContent align="end" className="min-w-40">
+              <DropdownMenuContent align="end" className="min-w-44">
+                {sorted.length >= 2 && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => onAutoSchedule(day.id)}
+                      disabled={isScheduling}
+                      className="sm:hidden"
+                    >
+                      <Sparkles className="h-4 w-4 text-violet-500" />
+                      Auto-schedule day
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="sm:hidden" />
+                  </>
+                )}
                 <DropdownMenuItem variant="destructive" onClick={() => onDeleteDay(day.id)}>
                   <Trash2 className="h-4 w-4" />
                   Delete day
@@ -546,18 +582,47 @@ function DayCard({
               >
                 <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
                   <div className="mb-3">
-                    {sorted.map((item, idx) => (
-                      <SortableActivityCard
-                        key={item.id}
-                        item={item}
-                        currency={currency}
-                        isLast={idx === sorted.length - 1}
-                        onEdit={onEdit}
-                        onDelete={(id) => onDelete(day.id, id)}
-                      />
-                    ))}
+                    {sorted.map((item, idx) => {
+                      const isLast     = idx === sorted.length - 1
+                      const hasTravel  = !isLast && !!item.travel_time_to_next
+                      const modeIcon   = item.travel_mode_to_next === 'driving'  ? '🚗'
+                                       : item.travel_mode_to_next === 'transit'  ? '🚌'
+                                       : '🚶'
+                      return (
+                        <Fragment key={item.id}>
+                          <SortableActivityCard
+                            item={item}
+                            currency={currency}
+                            isLast={isLast}
+                            hasConnector={hasTravel}
+                            onEdit={onEdit}
+                            onDelete={(id) => onDelete(day.id, id)}
+                          />
+                          {hasTravel && (
+                            <div className="flex items-center gap-2 pl-11 pt-1.5 pb-2 text-[11px] text-muted-foreground/55">
+                              <div className="h-px w-3 bg-border/40 flex-shrink-0" />
+                              <span className="flex items-center gap-1 whitespace-nowrap">
+                                {modeIcon}
+                                {item.travel_time_to_next}
+                                {item.travel_distance_to_next && (
+                                  <span className="text-muted-foreground/40">· {item.travel_distance_to_next}</span>
+                                )}
+                              </span>
+                              <div className="h-px flex-1 bg-border/40" />
+                            </div>
+                          )}
+                        </Fragment>
+                      )
+                    })}
                   </div>
                 </SortableContext>
+
+                {/* Stale schedule hint — shown after manual drag clears travel times */}
+                {hasStaleSchedule && (
+                  <p className="text-[11px] text-muted-foreground/50 text-center -mt-1 mb-2">
+                    ♻️ Travel times cleared — re-run ✨ Schedule to update
+                  </p>
+                )}
 
                 <DragOverlay
                   dropAnimation={{
@@ -594,6 +659,14 @@ interface ItineraryContentProps {
   locations: { id: string; name: string; type: string }[]
 }
 
+interface SchedulePreview {
+  dayId:          string
+  dayNumber:      number
+  optimizedOrder: { id: string; suggested_time: string }[]
+  travelTimes:    { fromId: string; toId: string; duration: string; distance: string; mode: string }[]
+  activities:     ItineraryItem[]
+}
+
 export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
   const [days, setDays] = useState(initialDays)
   const [activeItem, setActiveItem] = useState<ItineraryItem | null>(null)
@@ -606,6 +679,11 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
     | { type: 'item'; dayId: string; itemId: string }
     | { type: 'day'; dayId: string }
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
+
+  // Auto-schedule state
+  const [schedulingDayId, setSchedulingDayId]       = useState<string | null>(null)
+  const [schedulePreview, setSchedulePreview]         = useState<SchedulePreview | null>(null)
+  const [staleScheduleDayIds, setStaleScheduleDayIds] = useState<Set<string>>(new Set())
 
   const [itemForm, setItemForm] = useState<ItemFormState>(EMPTY_FORM)
   const locationRef = useRef<LocationRef>(EMPTY_LOCATION)
@@ -641,18 +719,39 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
       const newIdx = items.findIndex(i => i.id === over.id)
       if (oldIdx === -1 || newIdx === -1) return day
 
+      // Track whether this day had travel times (to show the stale hint)
+      const hadTravelTimes = items.some(i => i.travel_time_to_next != null)
+
       const reordered = arrayMove(items, oldIdx, newIdx)
 
-      // Persist new order_index values to DB (fire and forget)
+      // Persist new order + clear stale travel times (fire and forget)
       reordered.forEach((item, idx) => {
         supabase
           .from('itinerary_items')
-          .update({ order_index: idx })
+          .update({
+            order_index:             idx,
+            travel_time_to_next:     null,
+            travel_distance_to_next: null,
+            travel_mode_to_next:     null,
+          })
           .eq('id', item.id)
           .then(({ error }) => { if (error) console.error('Order persist failed:', error) })
       })
 
-      return { ...day, items: reordered.map((item, idx) => ({ ...item, order_index: idx })) }
+      if (hadTravelTimes) {
+        setStaleScheduleDayIds(prev => new Set(prev).add(dayId))
+      }
+
+      return {
+        ...day,
+        items: reordered.map((item, idx) => ({
+          ...item,
+          order_index:             idx,
+          travel_time_to_next:     null,
+          travel_distance_to_next: null,
+          travel_mode_to_next:     null,
+        })),
+      }
     }))
   }
 
@@ -886,6 +985,94 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
     ))
   }
 
+  // ── Auto-schedule ─────────────────────────────────────────────────────────────
+
+  async function handleAutoSchedule(dayId: string) {
+    const day = days.find(d => d.id === dayId)
+    if (!day || (day.items ?? []).length < 2) return
+
+    setSchedulingDayId(dayId)
+    try {
+      const activities = byOrderIndex(day.items ?? []).map(item => ({
+        id:            item.id,
+        name:          item.title,
+        category:      item.type,
+        start_time:    item.start_time ?? null,
+        location_name: item.location_name ?? null,
+        lat:           item.latitude ?? null,
+        lng:           item.longitude ?? null,
+      }))
+
+      const res = await fetch('/api/itinerary/auto-schedule', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          dayId,
+          tripId:     trip.id,
+          activities,
+          city:    trip.city || trip.country,
+          country: trip.country,
+        }),
+      })
+      if (!res.ok) throw new Error('Scheduling failed')
+      const { optimizedOrder, travelTimes } = await res.json()
+
+      setSchedulePreview({
+        dayId,
+        dayNumber:      day.day_number ?? (days.indexOf(day) + 1),
+        optimizedOrder,
+        travelTimes,
+        activities:     day.items ?? [],
+      })
+    } catch {
+      toast.error('Auto-schedule failed. Please try again.')
+    } finally {
+      setSchedulingDayId(null)
+    }
+  }
+
+  async function handleApplySchedule() {
+    if (!schedulePreview) return
+    const { dayId, optimizedOrder, travelTimes } = schedulePreview
+
+    const updates = optimizedOrder.map((o, idx) => {
+      const travel = travelTimes.find(t => t.fromId === o.id)
+      return {
+        id:                      o.id,
+        order_index:             idx,
+        start_time:              o.suggested_time,
+        travel_time_to_next:     travel?.duration     ?? null,
+        travel_distance_to_next: travel?.distance     ?? null,
+        travel_mode_to_next:     travel?.mode         ?? null,
+      }
+    })
+
+    await Promise.all(updates.map(u =>
+      supabase.from('itinerary_items').update({
+        order_index:             u.order_index,
+        start_time:              u.start_time,
+        travel_time_to_next:     u.travel_time_to_next,
+        travel_distance_to_next: u.travel_distance_to_next,
+        travel_mode_to_next:     u.travel_mode_to_next,
+      }).eq('id', u.id)
+    ))
+
+    setDays(prev => prev.map(day => {
+      if (day.id !== dayId) return day
+      return {
+        ...day,
+        items: (day.items ?? []).map(item => {
+          const u = updates.find(x => x.id === item.id)
+          return u ? { ...item, ...u } : item
+        }),
+      }
+    }))
+
+    setStaleScheduleDayIds(prev => { const n = new Set(prev); n.delete(dayId); return n })
+    setSchedulePreview(null)
+    toast.success('Schedule applied!')
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
@@ -947,6 +1134,9 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
               onDelete={(dayId, itemId) => setPendingDelete({ type: 'item', dayId, itemId })}
               onDeleteDay={(dayId) => setPendingDelete({ type: 'day', dayId })}
               onToggleComplete={toggleDayComplete}
+              onAutoSchedule={handleAutoSchedule}
+              isScheduling={schedulingDayId === day.id}
+              hasStaleSchedule={staleScheduleDayIds.has(day.id)}
             />
           ))}
         </div>
@@ -1072,6 +1262,85 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
         onConfirm={confirmDelete}
         confirmLabel={pendingDelete?.type === 'day' ? 'Delete Day' : 'Delete'}
       />
+
+      {/* ── Auto-schedule preview dialog ─────────────────────────────────────── */}
+      <Dialog
+        open={schedulePreview !== null}
+        onOpenChange={open => { if (!open) setSchedulePreview(null) }}
+      >
+        <DialogContent className="max-w-md max-h-[85vh] flex flex-col gap-0 p-0">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/50 shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="h-4 w-4 text-violet-500" />
+              Optimised schedule — Day {schedulePreview?.dayNumber}
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Review the suggested order and times, then apply.
+            </p>
+          </DialogHeader>
+
+          {schedulePreview && (
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-0.5 min-h-0">
+              {schedulePreview.optimizedOrder.map((o, idx) => {
+                const activity = schedulePreview.activities.find(a => a.id === o.id)
+                if (!activity) return null
+                const travel  = schedulePreview.travelTimes.find(t => t.fromId === o.id)
+                const isLast  = idx === schedulePreview.optimizedOrder.length - 1
+                const modeIcon = travel?.mode === 'driving' ? '🚗'
+                               : travel?.mode === 'transit'  ? '🚌'
+                               : '🚶'
+                return (
+                  <Fragment key={o.id}>
+                    {/* Activity row */}
+                    <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-muted/40 border border-border/30">
+                      <span className="text-[11px] font-mono font-semibold text-primary w-10 text-right flex-shrink-0">
+                        {o.suggested_time}
+                      </span>
+                      <span className="text-sm font-medium flex-1 min-w-0 truncate">
+                        {ITINERARY_TYPE_ICONS[activity.type]} {activity.title}
+                      </span>
+                      {activity.location_name && (
+                        <span className="text-[10px] text-muted-foreground hidden sm:block truncate max-w-[120px]">
+                          {activity.location_name}
+                        </span>
+                      )}
+                    </div>
+                    {/* Travel time connector */}
+                    {!isLast && (
+                      <div className="flex items-center gap-2 pl-[52px] py-1.5 text-[11px] text-muted-foreground/55">
+                        {travel ? (
+                          <>
+                            <div className="h-px w-3 bg-border/40 flex-shrink-0" />
+                            <span className="flex items-center gap-1 whitespace-nowrap">
+                              {modeIcon} {travel.duration}
+                              {travel.distance && <span className="text-muted-foreground/40">· {travel.distance}</span>}
+                            </span>
+                            <div className="h-px flex-1 bg-border/40" />
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground/30">—</span>
+                        )}
+                      </div>
+                    )}
+                  </Fragment>
+                )
+              })}
+            </div>
+          )}
+
+          <div className="px-5 py-4 border-t border-border/50 flex gap-3 shrink-0">
+            <Button variant="outline" className="flex-1" onClick={() => setSchedulePreview(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
+              onClick={handleApplySchedule}
+            >
+              Apply Schedule
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

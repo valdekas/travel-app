@@ -82,6 +82,7 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [x] Complete stale-days fix — both suggestions-content and itinerary-suggestions-panel now also re-fetch days on mount, so the list is fresh immediately when the user navigates to the Suggestions tab
 * [x] Fix itinerary day renumbering after deletion — remaining days are renumbered sequentially from 1 in both DB and local state; day dates are preserved
 * [x] Fix itinerary day date calculation — addDay and deleteDay now anchor dates to trip.start_date + (dayNumber - 1); deleting days no longer causes dates to drift beyond trip end; fallback to last-day+1 when no start_date
+* [x] ✨ Auto-schedule — per-day Claude-powered activity ordering + Google Maps travel times; preview dialog before applying; travel time connectors between cards; drag-and-drop clears stale times with re-run hint
 * [x] Fix TA Suggestions search to use location-based nearby search — Google Geocoding resolves area/city to lat/lng; TA nearby_search with 5km (area) or 20km (city) radius; falls back to text search if nearby returns 0; panels now send tripLat/tripLng as fallback coords
 
 ## Places
