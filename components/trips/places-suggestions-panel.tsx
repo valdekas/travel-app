@@ -95,7 +95,7 @@ function normalizePrice(raw: string): string {
 function SkeletonCard() {
   return (
     <div className="animate-pulse rounded-xl border border-border/50 overflow-hidden">
-      <div className="h-28 bg-muted" />
+      <div className="h-40 bg-muted" />
       <div className="p-3 space-y-2">
         <div className="h-3.5 bg-muted rounded w-3/4" />
         <div className="flex items-center gap-2">
@@ -531,7 +531,15 @@ export function PlacesSuggestionsPanel({ trip, existingNames, onAdded }: PlacesS
               {/* Step 3: Results */}
               {step === 'results' && (
                 <div className="px-4 py-4 space-y-2.5">
-                  {loading && Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+                  {loading && (
+                    <>
+                      {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
+                      <p className="text-xs text-center text-muted-foreground pt-1 pb-2">
+                        Finding the best {activeCategory?.name.toLowerCase()}
+                        {selectedArea ? ` near ${selectedArea}` : ` in ${city}`}…
+                      </p>
+                    </>
+                  )}
 
                   {error && (
                     <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-5 text-center">
