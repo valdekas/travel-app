@@ -466,13 +466,14 @@ function DayCard({
             </div>
           </div>
 
-          {/* Right: badge + 3 icon-buttons (flex-shrink-0 keeps them from being squeezed).
+          {/* Right: badge + icon buttons.
+              gap-2 (8px) between each keeps touch targets clearly separate on mobile.
               stopPropagation on wrapper isolates each button from the header collapse toggle. */}
           <div
-            className="flex items-center gap-1 flex-shrink-0"
+            className="flex items-center gap-2 flex-shrink-0"
             onClick={e => e.stopPropagation()}
           >
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-xs hidden sm:inline-flex">
               {sorted.length} {sorted.length === 1 ? 'activity' : 'activities'}
             </Badge>
 
@@ -491,7 +492,7 @@ function DayCard({
               <CheckCircle2 className="h-4 w-4" />
             </Button>
 
-            {/* Collapse chevron — explicit button so right-side tap also toggles */}
+            {/* Collapse chevron */}
             <Button
               variant="ghost" size="icon"
               className="h-10 w-10 md:h-7 md:w-7 flex-shrink-0 text-muted-foreground/50 hover:text-muted-foreground hover:bg-transparent"
@@ -504,15 +505,24 @@ function DayCard({
               )} />
             </Button>
 
-            {/* Delete */}
-            <Button
-              variant="ghost" size="icon"
-              className="h-10 w-10 md:h-7 md:w-7 flex-shrink-0 text-destructive hover:bg-destructive/10"
-              onClick={() => onDeleteDay(day.id)}
-              title="Delete day"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+            {/* Day overflow menu — delete is hidden here to prevent accidental taps */}
+            <DropdownMenu>
+              <DropdownMenuTrigger render={
+                <Button
+                  variant="ghost" size="icon"
+                  className="h-10 w-10 md:h-7 md:w-7 flex-shrink-0 text-muted-foreground/50 hover:text-muted-foreground"
+                  aria-label="Day options"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              } />
+              <DropdownMenuContent align="end" className="min-w-40">
+                <DropdownMenuItem variant="destructive" onClick={() => onDeleteDay(day.id)}>
+                  <Trash2 className="h-4 w-4" />
+                  Delete day
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </CardHeader>
@@ -1023,13 +1033,17 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
         open={pendingDelete !== null}
         onOpenChange={open => { if (!open) setPendingDelete(null) }}
         title={pendingDelete?.type === 'day' ? 'Delete Day' : 'Delete Activity'}
-        description={
-          pendingDelete?.type === 'day'
-            ? 'This will permanently remove this day and all its activities.'
-            : 'This will permanently remove this activity from your itinerary.'
-        }
+        description={(() => {
+          if (pendingDelete?.type === 'day') {
+            const count = days.find(d => d.id === pendingDelete.dayId)?.items?.length ?? 0
+            return count > 0
+              ? `This will permanently delete this day and all ${count} ${count === 1 ? 'activity' : 'activities'} in it. This cannot be undone.`
+              : 'This will permanently delete this day. This cannot be undone.'
+          }
+          return 'This will permanently remove this activity from your itinerary.'
+        })()}
         onConfirm={confirmDelete}
-        confirmLabel="Delete"
+        confirmLabel={pendingDelete?.type === 'day' ? 'Delete Day' : 'Delete'}
       />
     </div>
   )

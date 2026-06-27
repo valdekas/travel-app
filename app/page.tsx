@@ -1,20 +1,20 @@
-import { LandingNav } from '@/components/landing/landing-nav'
-import { LandingHero } from '@/components/landing/landing-hero'
-import { LandingMap } from '@/components/landing/landing-map'
-import { LandingFeatures } from '@/components/landing/landing-features'
-import { LandingDemo } from '@/components/landing/landing-demo'
-import { LandingPricing } from '@/components/landing/landing-pricing'
-import { LandingFooter } from '@/components/landing/landing-footer'
+import { LandingHeader } from '@/components/landing/LandingHeader'
+import { LandingHero } from '@/components/landing/LandingHero'
+import { LandingWorldMap } from '@/components/landing/LandingWorldMap'
+import { LandingDashboardShowcase } from '@/components/landing/LandingDashboardShowcase'
+import { LandingPhoneShowcase } from '@/components/landing/LandingPhoneShowcase'
+import { LandingPricing } from '@/components/landing/LandingPricing'
+import { LandingFooter } from '@/components/landing/LandingFooter'
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-white text-slate-900 overflow-x-hidden">
-      <LandingNav />
+    <div className="bg-slate-950 text-slate-100 overflow-x-hidden">
+      <LandingHeader />
       <main>
         <LandingHero />
-        <LandingMap />
-        <LandingFeatures />
-        <LandingDemo />
+        <LandingWorldMap />
+        <LandingDashboardShowcase />
+        <LandingPhoneShowcase />
         <LandingPricing />
       </main>
       <LandingFooter />

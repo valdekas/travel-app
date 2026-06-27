@@ -32,8 +32,10 @@ export async function searchTripAdvisorPlace(
       `https://api.content.tripadvisor.com/api/v1/location/search?searchQuery=${encodeURIComponent(`${name} ${city}`)}&language=en&key=${TA_API_KEY}`,
       { headers: { Accept: 'application/json' } },
     )
+    console.log('[TA] Search response status:', searchRes.status, 'for:', name, city)
     if (!searchRes.ok) return null
     const searchData = await searchRes.json()
+    console.log('[TA] Search results count:', searchData.data?.length, 'first result:', searchData.data?.[0]?.name)
     const location = searchData.data?.[0]
     if (!location) return null
 
@@ -52,6 +54,7 @@ export async function searchTripAdvisorPlace(
       `https://api.content.tripadvisor.com/api/v1/location/${locationId}/photos?language=en&limit=1&key=${TA_API_KEY}`,
       { headers: { Accept: 'application/json' } },
     )
+    console.log('[TA] Photos response status:', photosRes.status)
     let photo_url: string | null = null
     if (photosRes.ok) {
       const photosData = await photosRes.json()
@@ -64,6 +67,7 @@ export async function searchTripAdvisorPlace(
           null
       }
     }
+    console.log('[TA] Photo URL:', photo_url)
 
     const lat = details.latitude  ? parseFloat(details.latitude)  : null
     const lng = details.longitude ? parseFloat(details.longitude) : null
@@ -87,7 +91,8 @@ export async function searchTripAdvisorPlace(
       phone:          details.phone       ?? null,
       price_level:    details.price_level ?? null,
     }
-  } catch {
+  } catch (err) {
+    console.log('[TA] Error:', err)
     return null
   }
 }
