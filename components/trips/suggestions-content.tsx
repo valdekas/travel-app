@@ -373,6 +373,20 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip.id])
 
+  // Re-fetch days on mount so the day picker is current after any Itinerary tab changes
+  useEffect(() => {
+    async function refreshDays() {
+      const { data } = await supabase
+        .from('itinerary_days')
+        .select('id, day_number, date, title')
+        .eq('trip_id', trip.id)
+        .order('day_number', { ascending: true })
+      if (data) setLiveDays(data as typeof liveDays)
+    }
+    refreshDays()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.id])
+
   // Only show suggestions that have been enriched with TripAdvisor data
   const visibleSuggestions = suggestions.filter(s => s.photo_url && s.rating != null)
 

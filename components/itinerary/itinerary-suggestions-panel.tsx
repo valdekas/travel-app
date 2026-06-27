@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Trip, ItineraryDay, ItineraryItem, ItineraryItemType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { getCachedSuggestions, setCachedSuggestions } from '@/lib/utils/suggestions-cache'
@@ -298,6 +298,19 @@ export function ItinerarySuggestionsPanel({
   const [liveDays, setLiveDays]             = useState(days)
   const supabase = createClient()
   const city = extractCity(trip)
+
+  // Re-fetch days on mount so the selector is current after any Itinerary tab changes
+  useEffect(() => {
+    supabase
+      .from('itinerary_days')
+      .select('id, day_number, date')
+      .eq('trip_id', trip.id)
+      .order('day_number', { ascending: true })
+      .then(({ data }) => {
+        if (data && data.length > 0) setLiveDays(data as typeof liveDays)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.id])
 
   function openPanel() {
     setOpen(true)

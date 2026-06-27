@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-06-27 (Complete stale-days fix: refresh on mount)
+
+### Changed — `components/trips/suggestions-content.tsx`
+Added `useEffect` (dep: `trip.id`) that re-fetches `itinerary_days` on component mount. Ensures `liveDays` is already current when the user opens the day picker, even before clicking "+ Itinerary".
+
+### Changed — `components/itinerary/itinerary-suggestions-panel.tsx`
+Same mount-time re-fetch. `useEffect` added (dep: `trip.id`). Also added `useEffect` to React imports.
+
+---
+
 ## 2026-06-27 (Fix stale day list in Suggestions day picker)
 
 ### Changed — `components/trips/suggestions-content.tsx`
