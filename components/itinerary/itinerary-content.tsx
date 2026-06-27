@@ -825,7 +825,19 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
 
   async function deleteDay(dayId: string) {
     await supabase.from('itinerary_days').delete().eq('id', dayId)
-    setDays(d => d.filter(day => day.id !== dayId))
+
+    const renumbered = days
+      .filter(d => d.id !== dayId)
+      .sort((a, b) => (a.day_number ?? 0) - (b.day_number ?? 0))
+      .map((day, index) => ({ ...day, day_number: index + 1 }))
+
+    await Promise.all(
+      renumbered.map(day =>
+        supabase.from('itinerary_days').update({ day_number: day.day_number }).eq('id', day.id)
+      )
+    )
+
+    setDays(renumbered)
     toast.success('Day removed')
   }
 

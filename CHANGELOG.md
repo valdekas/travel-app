@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-06-27 (Fix itinerary day renumbering after deletion)
+
+### Changed — `components/itinerary/itinerary-content.tsx`
+`deleteDay` now renumbers all remaining days sequentially starting from 1 after a deletion. Steps: delete from DB → sort remaining by current `day_number` → assign `index + 1` → `Promise.all` updates to DB → update local state. Dates are untouched; only `day_number` changes.
+
+---
+
 ## 2026-06-27 (Complete stale-days fix: refresh on mount)
 
 ### Changed — `components/trips/suggestions-content.tsx`
