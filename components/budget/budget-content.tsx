@@ -491,6 +491,11 @@ export function BudgetContent({ trip, initialItems }: BudgetContentProps) {
                         </p>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           <Badge variant="outline" className="text-[10px] capitalize px-1.5 py-0">{item.category}</Badge>
+                          {item.itinerary_item_id && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/60 px-1.5 py-0.5 rounded-full border border-border/40 bg-muted/30">
+                              📅 Itinerary
+                            </span>
+                          )}
                           <PaidBadge paid={item.paid} onClick={() => togglePaid(item.id, !item.paid)} />
                         </div>
                       </div>

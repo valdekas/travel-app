@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-06-28 (Auto-sync itinerary activity costs to Budget)
+
+### Added — `supabase/migrations/019_budget_itinerary_link.sql`
+Adds `itinerary_item_id UUID REFERENCES itinerary_items(id) ON DELETE CASCADE` to `budget_items`, with a regular index. Must be applied manually in Supabase SQL editor.
+
+### Changed — `lib/types/index.ts`
+Added `itinerary_item_id?: string | null` to `BudgetItem` interface.
+
+### Changed — `components/itinerary/itinerary-content.tsx`
+- `mapActivityTypeToBudgetCategory`: maps `ItineraryItemType` → `BudgetCategory` (`flight→flights`, `hotel→hotels`, `restaurant→food`, `transport/car_rental→transport`, `shopping→shopping`, everything else → `activities`).
+- `syncActivityCostToBudget`: called fire-and-forget after both ADD and EDIT saves. If `cost > 0`: checks for an existing linked `budget_items` row (by `itinerary_item_id`) — updates title/category/actual_amount if found, inserts a new row if not. If `cost = 0`: deletes any linked budget row. ON DELETE CASCADE handles activity deletion automatically.
+- Activity card cost display updated from plain text to `💰 €25 · Budget` badge to confirm the cost is tracked.
+
+### Changed — `components/budget/budget-content.tsx`
+Auto-created budget items (those with `itinerary_item_id` set) show a `📅 Itinerary` pill badge next to the category badge in the All Expenses list.
+
+---
+
 ## 2026-06-28 (Remove suggested times from Auto-schedule)
 
 ### Changed — `app/api/itinerary/auto-schedule/route.ts`

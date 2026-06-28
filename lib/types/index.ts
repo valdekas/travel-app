@@ -128,6 +128,7 @@ export interface BudgetItem {
   date?: string
   notes?: string
   paid: boolean
+  itinerary_item_id?: string | null
   created_at: string
   updated_at: string
 }

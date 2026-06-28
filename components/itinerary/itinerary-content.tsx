@@ -93,6 +93,18 @@ const EMPTY_FORM: ItemFormState = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+function mapActivityTypeToBudgetCategory(type: string): string {
+  const map: Record<string, string> = {
+    flight:     'flights',
+    hotel:      'hotels',
+    restaurant: 'food',
+    transport:  'transport',
+    car_rental: 'transport',
+    shopping:   'shopping',
+  }
+  return map[type] ?? 'activities'
+}
+
 function getMapsUrl(item: ItineraryItem): string | null {
   if (item.google_maps_url) return item.google_maps_url
   if (item.latitude && item.longitude) return `https://www.google.com/maps?q=${item.latitude},${item.longitude}`
@@ -199,9 +211,13 @@ function ActivityCardInner({ item, currency, isLast, overlay, onEdit, onDelete }
               </p>
             )}
 
-            {/* Cost */}
+            {/* Cost — shown as budget indicator */}
             {item.cost > 0 && (
-              <p className="text-xs text-muted-foreground mt-1">{formatCurrency(item.cost, currency)}</p>
+              <p className="text-[11px] text-muted-foreground/70 mt-1 flex items-center gap-1">
+                <span>💰</span>
+                <span className="font-medium">{formatCurrency(item.cost, currency)}</span>
+                <span className="text-muted-foreground/40">· Budget</span>
+              </p>
             )}
 
             {/* Expanded: inline Edit / Maps shortcuts */}
@@ -855,6 +871,7 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
           ...day,
           items: day.items.map(i => i.id === editItem.id ? data : i),
         })))
+        syncActivityCostToBudget(data)
         toast.success('Activity updated')
       } else {
         const dayId = addItemDialog!
@@ -901,6 +918,7 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
           )
           return { ...day, items: [...shiftedItems, data] }
         }))
+        syncActivityCostToBudget(data)
         toast.success('Activity added')
       }
       closeDialog()
@@ -1066,6 +1084,42 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
     setFailedRecalcDayIds(prev => { const n = new Set(prev); n.delete(dayId); return n })
     setSchedulePreview(null)
     toast.success('Schedule applied!')
+  }
+
+  // ── Budget sync ───────────────────────────────────────────────────────────────
+
+  async function syncActivityCostToBudget(item: { id: string; trip_id: string; title: string; type: string; cost: number }) {
+    if (item.cost > 0) {
+      const { data: existing } = await supabase
+        .from('budget_items')
+        .select('id')
+        .eq('itinerary_item_id', item.id)
+        .maybeSingle()
+
+      if (existing) {
+        supabase.from('budget_items').update({
+          title:         item.title,
+          category:      mapActivityTypeToBudgetCategory(item.type),
+          actual_amount: item.cost,
+        }).eq('id', existing.id)
+          .then(({ error }) => { if (error) console.error('Budget sync update failed:', error) })
+      } else {
+        supabase.from('budget_items').insert({
+          trip_id:           item.trip_id,
+          itinerary_item_id: item.id,
+          title:             item.title,
+          category:          mapActivityTypeToBudgetCategory(item.type),
+          actual_amount:     item.cost,
+          planned_amount:    0,
+          currency:          trip.currency,
+          paid:              false,
+        }).then(({ error }) => { if (error) console.error('Budget sync insert failed:', error) })
+      }
+    } else {
+      supabase.from('budget_items').delete()
+        .eq('itinerary_item_id', item.id)
+        .then(({ error }) => { if (error) console.error('Budget sync delete failed:', error) })
+    }
   }
 
   // ── Background travel-time recalculation (after drag reorder) ────────────────
