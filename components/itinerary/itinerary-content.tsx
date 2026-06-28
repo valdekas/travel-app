@@ -483,11 +483,43 @@ function DayCard({
               {sorted.length} {sorted.length === 1 ? 'activity' : 'activities'}
             </Badge>
 
-            {/* Complete toggle — h-10/w-10 on mobile for 40px touch target */}
+            {/* ✨ Schedule button — icon-only on mobile, labeled on desktop; only when 2+ activities */}
+            {sorted.length >= 2 && (
+              <>
+                {/* Mobile: icon-only, 44px touch target */}
+                <Button
+                  variant="ghost" size="icon"
+                  className="flex sm:hidden h-11 w-11 flex-shrink-0 text-violet-500 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-950/50 disabled:opacity-50"
+                  onClick={() => onAutoSchedule(day.id)}
+                  disabled={isScheduling}
+                  title="Auto-schedule day"
+                >
+                  {isScheduling
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Sparkles className="h-4 w-4" />
+                  }
+                </Button>
+                {/* Desktop: labeled outline button */}
+                <Button
+                  variant="outline" size="sm"
+                  className="hidden sm:flex h-8 px-2.5 gap-1.5 text-xs text-violet-600 border-violet-200 hover:bg-violet-50 hover:text-violet-700 dark:text-violet-400 dark:border-violet-800 dark:hover:bg-violet-950/50 flex-shrink-0"
+                  onClick={() => onAutoSchedule(day.id)}
+                  disabled={isScheduling}
+                >
+                  {isScheduling
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Sparkles className="h-3.5 w-3.5" />
+                  }
+                  {isScheduling ? 'Scheduling…' : 'Schedule'}
+                </Button>
+              </>
+            )}
+
+            {/* Complete toggle — h-11/w-11 on mobile for 44px touch target */}
             <Button
               variant="ghost" size="icon"
               className={cn(
-                'h-10 w-10 md:h-7 md:w-7 flex-shrink-0 transition-colors',
+                'h-11 w-11 md:h-7 md:w-7 flex-shrink-0 transition-colors',
                 isCompleted
                   ? 'text-emerald-500 hover:text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-950/50'
                   : 'text-muted-foreground/40 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30',
@@ -498,27 +530,10 @@ function DayCard({
               <CheckCircle2 className="h-4 w-4" />
             </Button>
 
-            {/* ✨ Schedule button — desktop, only when 2+ activities */}
-            {sorted.length >= 2 && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden sm:flex h-8 px-2.5 gap-1.5 text-xs text-violet-600 border-violet-200 hover:bg-violet-50 hover:text-violet-700 dark:text-violet-400 dark:border-violet-800 dark:hover:bg-violet-950/50 flex-shrink-0"
-                onClick={() => onAutoSchedule(day.id)}
-                disabled={isScheduling}
-              >
-                {isScheduling
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  : <Sparkles className="h-3.5 w-3.5" />
-                }
-                {isScheduling ? 'Scheduling…' : 'Schedule'}
-              </Button>
-            )}
-
             {/* Collapse chevron */}
             <Button
               variant="ghost" size="icon"
-              className="h-10 w-10 md:h-7 md:w-7 flex-shrink-0 text-muted-foreground/50 hover:text-muted-foreground hover:bg-transparent"
+              className="h-11 w-11 md:h-7 md:w-7 flex-shrink-0 text-muted-foreground/50 hover:text-muted-foreground hover:bg-transparent"
               onClick={() => setCollapsed(v => !v)}
               aria-label={collapsed ? 'Expand day' : 'Collapse day'}
             >
@@ -528,31 +543,18 @@ function DayCard({
               )} />
             </Button>
 
-            {/* Day overflow menu — delete + mobile schedule */}
+            {/* Day overflow menu — delete day only */}
             <DropdownMenu>
               <DropdownMenuTrigger render={
                 <Button
                   variant="ghost" size="icon"
-                  className="h-10 w-10 md:h-7 md:w-7 flex-shrink-0 text-muted-foreground/50 hover:text-muted-foreground"
+                  className="h-11 w-11 md:h-7 md:w-7 flex-shrink-0 text-muted-foreground/50 hover:text-muted-foreground"
                   aria-label="Day options"
                 >
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               } />
               <DropdownMenuContent align="end" className="min-w-44">
-                {sorted.length >= 2 && (
-                  <>
-                    <DropdownMenuItem
-                      onClick={() => onAutoSchedule(day.id)}
-                      disabled={isScheduling}
-                      className="sm:hidden"
-                    >
-                      <Sparkles className="h-4 w-4 text-violet-500" />
-                      Auto-schedule day
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator className="sm:hidden" />
-                  </>
-                )}
                 <DropdownMenuItem variant="destructive" onClick={() => onDeleteDay(day.id)}>
                   <Trash2 className="h-4 w-4" />
                   Delete day
