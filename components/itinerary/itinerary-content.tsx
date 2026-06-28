@@ -134,17 +134,6 @@ function ActivityCardInner({ item, currency, isLast, overlay, onEdit, onDelete }
 
   return (
     <>
-      {/* Time column */}
-      <div className="w-11 flex-shrink-0 text-right pt-1">
-        {item.start_time ? (
-          <span className="text-[11px] font-mono font-semibold text-primary leading-none tabular-nums">
-            {item.start_time.slice(0, 5)}
-          </span>
-        ) : (
-          <span className="text-[11px] text-muted-foreground/25">—</span>
-        )}
-      </div>
-
       {/* Timeline dot + connector */}
       <div className="flex flex-col items-center flex-shrink-0 pt-1">
         <div className="w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-background flex-shrink-0" />
@@ -173,7 +162,7 @@ function ActivityCardInner({ item, currency, isLast, overlay, onEdit, onDelete }
               {item.end_time && (
                 <span className="text-xs text-muted-foreground flex items-center gap-0.5">
                   <Clock className="h-3 w-3" />
-                  {item.start_time ? `→ ${item.end_time.slice(0, 5)}` : item.end_time.slice(0, 5)}
+                  {item.end_time.slice(0, 5)}
                 </span>
               )}
               <Badge variant="outline" className="text-[10px] capitalize ml-auto shrink-0">
