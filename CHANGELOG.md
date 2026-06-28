@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-06-28 (Auto-update travel times after drag-and-drop reorder)
+
+### Changed — `app/api/itinerary/auto-schedule/route.ts`
+Added `travelTimesOnly?: boolean` flag to the POST body. When `true`, the Claude reordering step is skipped entirely — activities are used in the order received — and only the Google Maps Directions leg runs. Returns the same `{ optimizedOrder, travelTimes }` shape.
+
+### Changed — `components/itinerary/itinerary-content.tsx`
+- **`handleDragEnd`**: extracted reordered items before `setDays` so they can be passed directly to the recalculation function. Removed the old "stale hint" approach.
+- **`recalculateTravelTimes`**: new async function called in the background after every drag reorder. Skips days with fewer than 2 activities that have coordinates. Calls `/api/itinerary/auto-schedule` with `travelTimesOnly: true`, then writes results to DB and updates local state. Tracks loading state per day.
+- **`retryRecalcTravelTimes`**: retry entry point called from the per-day failure button.
+- **State**: replaced `staleScheduleDayIds` with `recalculatingDayIds` (Set) and `failedRecalcDayIds` (Set).
+- **DayCard UI**: while recalculating shows a "Updating travel times…" spinner below the activity list; on failure shows an "↻ Update travel times" button.
+- **Auto-schedule full flow** (`handleApplySchedule`) clears `failedRecalcDayIds` for the applied day.
+- **Mobile ✨ Schedule button**: moved from ⋯ overflow dropdown to directly visible in the day header row (icon-only, 44px touch target on mobile; labeled button on desktop).
+
+---
+
 ## 2026-06-27 (Fix: save coordinates when adding from Suggestions)
 
 ### Changed — `components/trips/suggestions-content.tsx`

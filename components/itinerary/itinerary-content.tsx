@@ -33,7 +33,7 @@ import { ItinerarySuggestionsPanel } from '@/components/itinerary/itinerary-sugg
 import { toast } from 'sonner'
 import {
   Plus, Calendar, Trash2, Loader2, MapPin,
-  ExternalLink, Pencil, Clock, GripVertical, MoreVertical, ChevronDown, CheckCircle2, Sparkles,
+  ExternalLink, Pencil, Clock, GripVertical, MoreVertical, ChevronDown, CheckCircle2, Sparkles, RefreshCw,
 } from 'lucide-react'
 import { parseISO, addDays, format } from 'date-fns'
 import { cn } from '@/lib/utils'
@@ -417,7 +417,9 @@ interface DayListProps {
   onToggleComplete: (dayId: string) => void
   onAutoSchedule: (dayId: string) => void
   isScheduling: boolean
-  hasStaleSchedule: boolean
+  isRecalculating: boolean
+  recalcFailed: boolean
+  onRetryRecalc: (dayId: string) => void
   dayIndex: number
   sensors: ReturnType<typeof useSensors>
 }
@@ -425,7 +427,7 @@ interface DayListProps {
 function DayCard({
   day, currency, onDragStart, onDragEnd, onDragCancel,
   activeItem, onOpenAdd, onEdit, onDelete, onDeleteDay, onToggleComplete,
-  onAutoSchedule, isScheduling, hasStaleSchedule, dayIndex, sensors,
+  onAutoSchedule, isScheduling, isRecalculating, recalcFailed, onRetryRecalc, dayIndex, sensors,
 }: DayListProps) {
   const [collapsed, setCollapsed] = useState(false)
   const isCompleted = day.is_completed ?? false
@@ -619,11 +621,21 @@ function DayCard({
                   </div>
                 </SortableContext>
 
-                {/* Stale schedule hint — shown after manual drag clears travel times */}
-                {hasStaleSchedule && (
-                  <p className="text-[11px] text-muted-foreground/50 text-center -mt-1 mb-2">
-                    ♻️ Travel times cleared — re-run ✨ Schedule to update
+                {/* Travel time recalculation status */}
+                {isRecalculating && (
+                  <p className="text-[11px] text-muted-foreground/50 text-center -mt-1 mb-2 flex items-center justify-center gap-1.5">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Updating travel times…
                   </p>
+                )}
+                {!isRecalculating && recalcFailed && (
+                  <button
+                    className="w-full text-[11px] text-muted-foreground/50 hover:text-muted-foreground/80 text-center -mt-1 mb-2 flex items-center justify-center gap-1 transition-colors"
+                    onClick={() => onRetryRecalc(day.id)}
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Update travel times
+                  </button>
                 )}
 
                 <DragOverlay
@@ -683,9 +695,10 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
 
   // Auto-schedule state
-  const [schedulingDayId, setSchedulingDayId]       = useState<string | null>(null)
-  const [schedulePreview, setSchedulePreview]         = useState<SchedulePreview | null>(null)
-  const [staleScheduleDayIds, setStaleScheduleDayIds] = useState<Set<string>>(new Set())
+  const [schedulingDayId, setSchedulingDayId]         = useState<string | null>(null)
+  const [schedulePreview, setSchedulePreview]           = useState<SchedulePreview | null>(null)
+  const [recalculatingDayIds, setRecalculatingDayIds]   = useState<Set<string>>(new Set())
+  const [failedRecalcDayIds, setFailedRecalcDayIds]     = useState<Set<string>>(new Set())
 
   const [itemForm, setItemForm] = useState<ItemFormState>(EMPTY_FORM)
   const locationRef = useRef<LocationRef>(EMPTY_LOCATION)
@@ -713,48 +726,41 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
     const { active, over } = event
     if (!over || active.id === over.id) return
 
-    setDays(prev => prev.map(day => {
-      if (day.id !== dayId) return day
+    const day = days.find(d => d.id === dayId)
+    if (!day) return
 
-      const items = byOrderIndex(day.items ?? [])
-      const oldIdx = items.findIndex(i => i.id === active.id)
-      const newIdx = items.findIndex(i => i.id === over.id)
-      if (oldIdx === -1 || newIdx === -1) return day
+    const items = byOrderIndex(day.items ?? [])
+    const oldIdx = items.findIndex(i => i.id === active.id)
+    const newIdx = items.findIndex(i => i.id === over.id)
+    if (oldIdx === -1 || newIdx === -1) return
 
-      // Track whether this day had travel times (to show the stale hint)
-      const hadTravelTimes = items.some(i => i.travel_time_to_next != null)
+    const reordered = arrayMove(items, oldIdx, newIdx).map((item, idx) => ({
+      ...item,
+      order_index:             idx,
+      travel_time_to_next:     null as string | null,
+      travel_distance_to_next: null as string | null,
+      travel_mode_to_next:     null as string | null,
+    }))
 
-      const reordered = arrayMove(items, oldIdx, newIdx)
+    // Update local state immediately (clear travel times; recalc will fill them back in)
+    setDays(prev => prev.map(d => d.id === dayId ? { ...d, items: reordered } : d))
 
-      // Persist new order + clear stale travel times (fire and forget)
-      reordered.forEach((item, idx) => {
-        supabase
-          .from('itinerary_items')
-          .update({
-            order_index:             idx,
-            travel_time_to_next:     null,
-            travel_distance_to_next: null,
-            travel_mode_to_next:     null,
-          })
-          .eq('id', item.id)
-          .then(({ error }) => { if (error) console.error('Order persist failed:', error) })
-      })
-
-      if (hadTravelTimes) {
-        setStaleScheduleDayIds(prev => new Set(prev).add(dayId))
-      }
-
-      return {
-        ...day,
-        items: reordered.map((item, idx) => ({
-          ...item,
-          order_index:             idx,
+    // Persist new order + clear travel times (fire and forget)
+    reordered.forEach(item => {
+      supabase
+        .from('itinerary_items')
+        .update({
+          order_index:             item.order_index,
           travel_time_to_next:     null,
           travel_distance_to_next: null,
           travel_mode_to_next:     null,
-        })),
-      }
-    }))
+        })
+        .eq('id', item.id)
+        .then(({ error }) => { if (error) console.error('Order persist failed:', error) })
+    })
+
+    // Background travel time recalculation for the new order
+    recalculateTravelTimes(dayId, reordered)
   }
 
   function handleDragCancel() {
@@ -1070,9 +1076,85 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
       }
     }))
 
-    setStaleScheduleDayIds(prev => { const n = new Set(prev); n.delete(dayId); return n })
+    setFailedRecalcDayIds(prev => { const n = new Set(prev); n.delete(dayId); return n })
     setSchedulePreview(null)
     toast.success('Schedule applied!')
+  }
+
+  // ── Background travel-time recalculation (after drag reorder) ────────────────
+
+  async function recalculateTravelTimes(dayId: string, reorderedItems: ItineraryItem[]) {
+    const itemsWithCoords = reorderedItems.filter(i => i.latitude != null && i.longitude != null)
+    if (itemsWithCoords.length < 2) return
+
+    setRecalculatingDayIds(prev => new Set(prev).add(dayId))
+    setFailedRecalcDayIds(prev => { const n = new Set(prev); n.delete(dayId); return n })
+
+    try {
+      const res = await fetch('/api/itinerary/auto-schedule', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          dayId,
+          tripId:         reorderedItems[0]?.trip_id ?? '',
+          activities:     reorderedItems.map(i => ({
+            id:            i.id,
+            name:          i.title,
+            category:      i.type,
+            start_time:    i.start_time ?? null,
+            location_name: i.location_name ?? null,
+            lat:           i.latitude ?? null,
+            lng:           i.longitude ?? null,
+          })),
+          city:            trip.city || trip.country,
+          country:         trip.country,
+          travelTimesOnly: true,
+        }),
+      })
+      if (!res.ok) throw new Error('Recalculation failed')
+
+      const { travelTimes } = await res.json() as {
+        travelTimes: { fromId: string; toId: string; duration: string; distance: string; mode: string }[]
+      }
+
+      if (travelTimes?.length > 0) {
+        // Persist to DB
+        await Promise.all(
+          travelTimes.map(tt =>
+            supabase
+              .from('itinerary_items')
+              .update({
+                travel_time_to_next:     tt.duration,
+                travel_distance_to_next: tt.distance,
+                travel_mode_to_next:     tt.mode,
+              })
+              .eq('id', tt.fromId)
+          )
+        )
+        // Update local state
+        setDays(prev => prev.map(day =>
+          day.id !== dayId ? day : {
+            ...day,
+            items: day.items.map(item => {
+              const tt = travelTimes.find(t => t.fromId === item.id)
+              return tt
+                ? { ...item, travel_time_to_next: tt.duration, travel_distance_to_next: tt.distance, travel_mode_to_next: tt.mode }
+                : item
+            }),
+          }
+        ))
+      }
+    } catch {
+      setFailedRecalcDayIds(prev => new Set(prev).add(dayId))
+    } finally {
+      setRecalculatingDayIds(prev => { const n = new Set(prev); n.delete(dayId); return n })
+    }
+  }
+
+  function retryRecalcTravelTimes(dayId: string) {
+    const day = days.find(d => d.id === dayId)
+    if (!day) return
+    recalculateTravelTimes(dayId, byOrderIndex(day.items ?? []))
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -1138,7 +1220,9 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
               onToggleComplete={toggleDayComplete}
               onAutoSchedule={handleAutoSchedule}
               isScheduling={schedulingDayId === day.id}
-              hasStaleSchedule={staleScheduleDayIds.has(day.id)}
+              isRecalculating={recalculatingDayIds.has(day.id)}
+              recalcFailed={failedRecalcDayIds.has(day.id)}
+              onRetryRecalc={retryRecalcTravelTimes}
             />
           ))}
         </div>

@@ -55,12 +55,13 @@ async function getDirections(
 }
 
 export async function POST(req: NextRequest) {
-  const { activities, city, country } = await req.json() as {
-    dayId:      string
-    tripId:     string
-    activities: ActivityInput[]
-    city:       string
-    country:    string
+  const { activities, city, country, travelTimesOnly } = await req.json() as {
+    dayId:           string
+    tripId:          string
+    activities:      ActivityInput[]
+    city:            string
+    country:         string
+    travelTimesOnly?: boolean
   }
 
   if (!activities || activities.length < 2) {
@@ -70,19 +71,28 @@ export async function POST(req: NextRequest) {
   console.log('[AutoSchedule] Activities received:', activities.length)
   console.log('[AutoSchedule] Activities with coords:', activities.filter(a => a.lat && a.lng).length)
 
-  // ── Step 1: Claude optimises the order ───────────────────────────────────────
+  // ── Step 1: order optimisation (skipped when travelTimesOnly) ──────────────
 
-  const anthropic = new Anthropic()
+  let optimizedOrder: OptimizedActivity[] = []
 
-  const activityList = activities.map(a => ({
-    id:           a.id,
-    name:         a.name,
-    category:     a.category,
-    location:     a.location_name ?? null,
-    current_time: a.start_time ?? null,
-  }))
+  if (travelTimesOnly) {
+    // Keep activities in the received order; preserve existing start_times
+    optimizedOrder = activities.map(a => ({
+      id:             a.id,
+      suggested_time: a.start_time ?? '09:00',
+    }))
+  } else {
+    const anthropic = new Anthropic()
 
-  const prompt = `You are a travel expert. Optimise the order of these activities for a single day in ${city}, ${country}.
+    const activityList = activities.map(a => ({
+      id:           a.id,
+      name:         a.name,
+      category:     a.category,
+      location:     a.location_name ?? null,
+      current_time: a.start_time ?? null,
+    }))
+
+    const prompt = `You are a travel expert. Optimise the order of these activities for a single day in ${city}, ${country}.
 
 Rules:
 - Museums and attractions: morning 09:00–13:00
@@ -100,32 +110,31 @@ Return ONLY a valid JSON array — no markdown, no code fences, no explanation.
 Format: [{ "id": "uuid", "suggested_time": "HH:MM" }]
 Include ALL ${activities.length} activities. Start the day around 09:00.`
 
-  let optimizedOrder: OptimizedActivity[] = []
+    try {
+      const message = await anthropic.messages.create({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        messages:   [{ role: 'user', content: prompt }],
+      })
 
-  try {
-    const message = await anthropic.messages.create({
-      model:      'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      messages:   [{ role: 'user', content: prompt }],
-    })
+      const raw = message.content[0].type === 'text' ? message.content[0].text : '[]'
+      const clean = raw.replace(/```json?\n?/g, '').replace(/```\n?/g, '').trim()
+      optimizedOrder = JSON.parse(clean)
 
-    const raw = message.content[0].type === 'text' ? message.content[0].text : '[]'
-    const clean = raw.replace(/```json?\n?/g, '').replace(/```\n?/g, '').trim()
-    optimizedOrder = JSON.parse(clean)
-
-    // Safety: ensure every activity ID is present (Claude might drop one)
-    const returnedIds = new Set(optimizedOrder.map(o => o.id))
-    for (const a of activities) {
-      if (!returnedIds.has(a.id)) {
-        optimizedOrder.push({ id: a.id, suggested_time: '18:00' })
+      // Safety: ensure every activity ID is present (Claude might drop one)
+      const returnedIds = new Set(optimizedOrder.map(o => o.id))
+      for (const a of activities) {
+        if (!returnedIds.has(a.id)) {
+          optimizedOrder.push({ id: a.id, suggested_time: '18:00' })
+        }
       }
+    } catch {
+      // Fallback: keep original order, assign hourly slots from 09:00
+      optimizedOrder = activities.map((a, i) => ({
+        id:             a.id,
+        suggested_time: `${String(9 + i).padStart(2, '0')}:00`,
+      }))
     }
-  } catch {
-    // Fallback: keep original order, assign hourly slots from 09:00
-    optimizedOrder = activities.map((a, i) => ({
-      id:             a.id,
-      suggested_time: `${String(9 + i).padStart(2, '0')}:00`,
-    }))
   }
 
   // ── Step 2: Google Maps travel times for consecutive pairs ───────────────────
