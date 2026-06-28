@@ -676,7 +676,7 @@ interface ItineraryContentProps {
 interface SchedulePreview {
   dayId:          string
   dayNumber:      number
-  optimizedOrder: { id: string; suggested_time: string }[]
+  optimizedOrder: { id: string }[]
   travelTimes:    { fromId: string; toId: string; duration: string; distance: string; mode: string }[]
   activities:     ItineraryItem[]
 }
@@ -1048,17 +1048,15 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
       return {
         id:                      o.id,
         order_index:             idx,
-        start_time:              o.suggested_time,
-        travel_time_to_next:     travel?.duration     ?? null,
-        travel_distance_to_next: travel?.distance     ?? null,
-        travel_mode_to_next:     travel?.mode         ?? null,
+        travel_time_to_next:     travel?.duration ?? null,
+        travel_distance_to_next: travel?.distance ?? null,
+        travel_mode_to_next:     travel?.mode     ?? null,
       }
     })
 
     await Promise.all(updates.map(u =>
       supabase.from('itinerary_items').update({
         order_index:             u.order_index,
-        start_time:              u.start_time,
         travel_time_to_next:     u.travel_time_to_next,
         travel_distance_to_next: u.travel_distance_to_next,
         travel_mode_to_next:     u.travel_mode_to_next,
@@ -1379,21 +1377,18 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
                   <Fragment key={o.id}>
                     {/* Activity row */}
                     <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-muted/40 border border-border/30">
-                      <span className="text-[11px] font-mono font-semibold text-primary w-10 text-right flex-shrink-0">
-                        {o.suggested_time}
-                      </span>
                       <span className="text-sm font-medium flex-1 min-w-0 truncate">
                         {ITINERARY_TYPE_ICONS[activity.type]} {activity.title}
                       </span>
                       {activity.location_name && (
-                        <span className="text-[10px] text-muted-foreground hidden sm:block truncate max-w-[120px]">
+                        <span className="text-[10px] text-muted-foreground hidden sm:block truncate max-w-[140px]">
                           {activity.location_name}
                         </span>
                       )}
                     </div>
                     {/* Travel time connector */}
                     {!isLast && (
-                      <div className="flex items-center gap-2 pl-[52px] py-1.5 text-[11px] text-muted-foreground/55">
+                      <div className="flex items-center gap-2 pl-3 py-1.5 text-[11px] text-muted-foreground/55">
                         {travel ? (
                           <>
                             <div className="h-px w-3 bg-border/40 flex-shrink-0" />

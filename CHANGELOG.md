@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-06-28 (Remove suggested times from Auto-schedule)
+
+### Changed — `app/api/itinerary/auto-schedule/route.ts`
+- `OptimizedActivity` type simplified to `{ id: string }` — no more `suggested_time`.
+- Claude prompt now asks for a flat JSON array of IDs (`["uuid1","uuid2",...]`) instead of `[{id, suggested_time}]`. `max_tokens` reduced from 1024 to 512.
+- `travelTimesOnly` branch simply maps activities to `{ id }` (no time needed).
+- Both fallback paths also drop `suggested_time`.
+
+### Changed — `components/itinerary/itinerary-content.tsx`
+- `SchedulePreview.optimizedOrder` type narrowed to `{ id: string }[]`.
+- `handleApplySchedule` no longer writes `start_time` to `itinerary_items` — only `order_index` and the three travel-time columns are updated.
+- Preview dialog: removed the `HH:MM` time badge from each activity row; travel-connector `pl-[52px]` offset removed (no time column to align under).
+
+---
+
 ## 2026-06-28 (Auto-update travel times after drag-and-drop reorder)
 
 ### Changed — `app/api/itinerary/auto-schedule/route.ts`
