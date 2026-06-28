@@ -25,7 +25,7 @@ import { toast } from 'sonner'
 import {
   Plus, Trash2, Loader2, DollarSign, Wallet,
   TrendingUp, TrendingDown, AlertTriangle,
-  CheckCircle2, Clock, Pencil, CalendarDays, MoreVertical,
+  CheckCircle2, Clock, Pencil, CalendarDays, MoreVertical, Check, X,
 } from 'lucide-react'
 import {
   PieChart as RechartsPie, Pie, Cell, ResponsiveContainer,
@@ -134,6 +134,10 @@ export function BudgetContent({ trip, initialItems }: BudgetContentProps) {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [localBudget, setLocalBudget]       = useState(trip.budget ?? 0)
+  const [editingBudget, setEditingBudget]   = useState(false)
+  const [budgetInput, setBudgetInput]       = useState(String(trip.budget ?? ''))
+  const [savingBudget, setSavingBudget]     = useState(false)
   const supabase = createClient()
 
   const { resolvedTheme } = useTheme()
@@ -150,7 +154,7 @@ export function BudgetContent({ trip, initialItems }: BudgetContentProps) {
 
   const totalPlanned = items.reduce((s, i) => s + i.planned_amount, 0)
   const totalSpent   = items.reduce((s, i) => s + i.actual_amount, 0)
-  const tripBudget   = trip.budget || totalPlanned
+  const tripBudget   = localBudget || totalPlanned
   const remaining    = tripBudget - totalSpent
   const isOverBudget = remaining < 0
   const overallPct   = tripBudget > 0 ? Math.min(100, Math.round((totalSpent / tripBudget) * 100)) : 0
@@ -170,6 +174,22 @@ export function BudgetContent({ trip, initialItems }: BudgetContentProps) {
   const chartGridColor  = isDark ? '#1e293b' : '#f1f5f9'
 
   // ── Actions ───────────────────────────────────────────────────────────────────
+
+  async function saveBudget() {
+    const newBudget = parseFloat(budgetInput) || 0
+    setSavingBudget(true)
+    try {
+      const { error } = await supabase.from('trips').update({ budget: newBudget }).eq('id', trip.id)
+      if (error) throw error
+      setLocalBudget(newBudget)
+      setEditingBudget(false)
+      toast.success('Budget updated')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update budget')
+    } finally {
+      setSavingBudget(false)
+    }
+  }
 
   function openAdd() {
     setEditingId(null)
@@ -273,14 +293,81 @@ export function BudgetContent({ trip, initialItems }: BudgetContentProps) {
               </div>
               <span className="text-xs font-medium text-muted-foreground">Total Budget</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">{formatCurrency(tripBudget, currency)}</p>
-            <div className="mt-3 space-y-1.5">
-              <ColorProgress
-                value={overallPct}
-                color={overallPct >= 100 ? '#ef4444' : overallPct >= 80 ? '#f59e0b' : '#6366f1'}
-              />
-              <p className="text-xs text-muted-foreground">{overallPct}% of budget used</p>
-            </div>
+
+            {editingBudget ? (
+              /* ── Edit mode ── */
+              <div className="space-y-2">
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={budgetInput}
+                  onChange={e => setBudgetInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveBudget(); if (e.key === 'Escape') { setEditingBudget(false); setBudgetInput(String(localBudget || '')) } }}
+                  className="h-10 text-lg font-bold"
+                  autoFocus
+                  placeholder="0"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="flex-1 h-10 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+                    onClick={saveBudget}
+                    disabled={savingBudget}
+                  >
+                    {savingBudget ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 h-10 gap-1.5"
+                    onClick={() => { setEditingBudget(false); setBudgetInput(String(localBudget || '')) }}
+                    disabled={savingBudget}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              /* ── Display mode ── */
+              <>
+                <div className="group flex items-center gap-2">
+                  {localBudget > 0 ? (
+                    <p className="text-2xl font-bold text-foreground">{formatCurrency(localBudget, currency)}</p>
+                  ) : (
+                    <button
+                      onClick={() => { setBudgetInput(''); setEditingBudget(true) }}
+                      className="text-sm font-medium text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors"
+                    >
+                      Set budget →
+                    </button>
+                  )}
+                  {localBudget > 0 && (
+                    <button
+                      onClick={() => { setBudgetInput(String(localBudget)); setEditingBudget(true) }}
+                      className={cn(
+                        'p-1.5 rounded-md text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50 transition-colors',
+                        'opacity-100 md:opacity-0 md:group-hover:opacity-100',
+                      )}
+                      aria-label="Edit budget"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                {localBudget > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    <ColorProgress
+                      value={overallPct}
+                      color={overallPct >= 100 ? '#ef4444' : overallPct >= 80 ? '#f59e0b' : '#6366f1'}
+                    />
+                    <p className="text-xs text-muted-foreground">{overallPct}% of budget used</p>
+                  </div>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
 

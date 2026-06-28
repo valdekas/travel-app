@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-06-28 (Inline budget editing in Budget tab)
+
+### Changed — `components/budget/budget-content.tsx`
+- Added `localBudget`, `editingBudget`, `budgetInput`, `savingBudget` state. All calculations now use `localBudget` instead of `trip.budget` so the card updates immediately after saving without a page reload.
+- **Total Budget card — display mode**: shows amount with a pencil icon (hover-revealed on desktop, always visible on mobile) to enter edit mode. When `localBudget = 0`, shows a "Set budget →" CTA link instead of "€0.00".
+- **Total Budget card — edit mode**: replaces the amount with a number `<Input>` (autofocused, Enter to save, Escape to cancel) and "Save" / "Cancel" buttons with 44px touch targets. Saving calls `supabase.from('trips').update({ budget })`, updates local state, and shows a success toast.
+
+---
+
 ## 2026-06-28 (Auto-sync itinerary activity costs to Budget)
 
 ### Added — `supabase/migrations/019_budget_itinerary_link.sql`
