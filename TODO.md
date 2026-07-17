@@ -1,6 +1,6 @@
 # 📋 Travel Planner – TODO
 
-Last Updated: 2026-06-24
+Last Updated: 2026-07-17
 
 ---
 
@@ -82,7 +82,7 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [x] Complete stale-days fix — both suggestions-content and itinerary-suggestions-panel now also re-fetch days on mount, so the list is fresh immediately when the user navigates to the Suggestions tab
 * [x] Fix itinerary day renumbering after deletion — remaining days are renumbered sequentially from 1 in both DB and local state; day dates are preserved
 * [x] Fix itinerary day date calculation — addDay and deleteDay now anchor dates to trip.start_date + (dayNumber - 1); deleting days no longer causes dates to drift beyond trip end; fallback to last-day+1 when no start_date
-* [x] ✨ Auto-schedule — per-day Claude-powered activity ordering + Google Maps travel times; preview dialog before applying; travel time connectors between cards; drag-and-drop clears stale times with re-run hint
+* [x] ✨ Auto-schedule — per-day Claude-powered activity ordering + Google Maps travel times; preview dialog (activity order + travel connectors, no suggested times); apply writes order + travel times only (user start_times preserved); drag-and-drop triggers automatic background travel-time recalculation; spinner while recalculating; "Update travel times" retry button on failure
 * [x] Fix: save lat/lng + location fields when adding activities from Suggestions tab and ✨ Suggestions panels so auto-schedule can compute travel times
 * [x] Fix TA Suggestions search to use location-based nearby search — Google Geocoding resolves area/city to lat/lng; TA nearby_search with 5km (area) or 20km (city) radius; falls back to text search if nearby returns 0; panels now send tripLat/tripLng as fallback coords
 
@@ -105,12 +105,18 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [x] Chronological insert — new activities with a start_time slot into the correct position by time instead of always appending; DnD manual order unaffected
 * [x] Day collapse/expand — click day header to toggle activity list; all start expanded; chevron rotates; UI-only, no DB
 * [x] Day completed toggle — `CheckCircle2` button marks day done; emerald header + circle + dimmed text; persisted to `itinerary_days.is_completed`; optimistic UI with rollback; 44px touch targets on mobile
-* [ ] Travel time between activities
+* [x] Travel time between activities — shown via connectors; auto-updated after drag reorder
 * [ ] Activity photos
 * [ ] Timeline polish
 
+## Checklist
+
+* [x] AI packing suggestions — ✨ Suggestions button opens 2-step dialog: priority filter (Essential/Recommended/Optional) → Claude Haiku generates 30-40 trip-specific items grouped by Documents/Packing/Custom; checkbox selection; deduplicates against existing items; bulk-inserts selected items
+
 ## Budget
 
+* [x] Auto-sync itinerary activity costs — adding/editing an activity with cost > 0 creates/updates a linked budget_items row (actual_amount); cost = 0 deletes it; ON DELETE CASCADE handles activity deletion; "📅 Itinerary" badge on auto-created rows; "💰 · Budget" indicator on activity card
+* [x] Inline budget editing — Total Budget card has pencil icon to edit trip budget in-place; "Set budget →" CTA when budget is unset; Enter/Escape keyboard support; persists to trips table
 * [x] Polish summary cards — colored accents, over-budget warning, progress bar
 * [x] Polish charts — custom tooltips, soft grid, theme-aware colors
 * [x] Polish category cards — color progress bars, over-budget state, spent/remaining display

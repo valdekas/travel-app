@@ -1,5 +1,137 @@
 # Changelog
 
+## 2026-07-17 (RC audit fixes — forgot password + dead state removal)
+
+### Added — `app/(auth)/auth/forgot-password/page.tsx`
+New forgot-password page matching the login page layout. Email input calls `supabase.auth.resetPasswordForEmail()` with a redirect back to `/settings/account`. On success, shows a check-circle confirmation with the submitted email address and a "try again" option. Styled identically to the login page (split panel, violet gradient left side).
+
+### Changed — `app/(auth)/auth/login/page.tsx`
+Added "Forgot password?" link in the password field label row (right-aligned, muted text). Only shown in sign-in mode (hidden during registration). Links to `/auth/forgot-password`.
+
+### Changed — `components/trips/trips-list-content.tsx`
+Removed dead `const [view, setView] = useState<'grid' | 'list'>('grid')` — the view state was declared but never read; the grid layout was already hardcoded.
+
+---
+
+## 2026-07-17 (Flights tab + home location in Settings)
+
+### Added — `supabase/migrations/020_user_settings_home_location.sql`
+Adds `home_city TEXT`, `home_country TEXT`, `home_airport TEXT` (IATA code) columns to `user_settings`. Apply in Supabase SQL editor.
+
+### Changed — `lib/types/index.ts`
+Added `home_city`, `home_country`, `home_airport` (`string | null`) to `UserSettings` interface and `DEFAULT_USER_SETTINGS`.
+
+### Changed — `app/(dashboard)/settings/account/page.tsx`
+Fetches `home_city, home_country, home_airport` from `user_settings` and passes as `homeSettings` prop to `AccountSettings`.
+
+### Changed — `components/settings/account-settings.tsx`
+Added `userId` and `homeSettings` props. New **Home Location** section with:
+- `PlacesAutocomplete` for city (auto-populates `home_country` on select).
+- Plain text input for IATA airport code (max 3 chars, uppercased, mono font).
+- Dedicated "Save Home Location" button (upserts `user_settings` on conflict `user_id`).
+
+### Changed — `components/trips/trip-detail-shell.tsx`
+Added `Flights` tab (`href: 'flights'`, icon: `Plane`) after Hotels.
+
+### Added — `app/(dashboard)/trips/[id]/flights/page.tsx`
+Server component. Fetches `trip` (select `*`) and `user_settings` (`home_city, home_country, home_airport`) in parallel; passes both to `FlightsContent`.
+
+### Added — `components/trips/flights-content.tsx`
+Client component with 6 pre-filled platform cards: Google Flights, Skyscanner, Ryanair, Kayak, Wizz Air, Expedia. All links open in a new tab. URL encoding via `encodeURIComponent`. Skyscanner uses YYMMDD date format; other platforms use YYYY-MM-DD. Falls back to `home_city` if `home_airport` is not set; falls back to `trip.city` for destination IATA. States: no-home-city banner (→ Settings link), no-trip-dates banner (→ EditTripDialog), route summary card when both are present. Flight booking tips section at the bottom.
+
+---
+
+## 2026-07-17 (Hotels tab with pre-filled booking platform links)
+
+### Changed — `components/trips/trip-detail-shell.tsx`
+Added `Hotels` tab (`href: 'hotels'`, icon: `BedDouble`).
+
+### Added — `app/(dashboard)/trips/[id]/hotels/page.tsx`
+Server component fetching trip with `select('*')`.
+
+### Added — `components/trips/hotels-content.tsx`
+Six platform cards (Booking.com, Airbnb, Google Hotels, Expedia, Hotels.com, Hostelworld) with coloured left-border accents, pre-filled search URLs, no-city / no-dates states with `EditTripDialog`, context pills, and booking tips.
+
+---
+
+## 2026-07-17 (AI-powered packing list suggestions in Checklist tab)
+
+### Added — `app/api/checklist/suggestions/route.ts`
+POST endpoint accepting `{ city, country, duration, startDate, tripTypes, existingItems }`. Calls Claude Haiku with a structured prompt requesting 30–40 items categorised as `documents | packing | custom` with priority `essential | recommended | optional` and a trip-specific reason per item. Validates and sanitises the JSON array before returning `{ suggestions }`.
+
+### Changed — `app/(dashboard)/trips/[id]/checklist/page.tsx`
+Fetches `city, country, start_date, end_date` from `trips` and distinct `type` values from `itinerary_items`. Calculates trip duration with `date-fns`. Passes `tripContext` to `ChecklistContent`.
+
+### Changed — `components/checklist/checklist-content.tsx`
+- Added `TripContext` and `SuggestionItem` interfaces; new `tripContext?` prop.
+- Added `✨ Suggestions` outline button in the section header (violet, icon-only on mobile).
+- **Suggestions dialog** (2-step):
+  - Step 1: priority filter (Essential / Recommended / Optional toggles) + "Generate Suggestions" button.
+  - Step 2: Loading skeleton → results grouped by category (Documents / Packing / Custom) with per-item checkbox, priority badge, and reason. "Select only essentials" shortcut. "Add X Selected" applies items to the checklist.
+- `generateSuggestions`: calls API, filters by selected priorities, pre-selects essential + recommended items.
+- `addSelectedSuggestions`: deduplicates against existing items, bulk-inserts to `checklist_items`, updates local state, shows success toast.
+- Existing checklist functionality (add/edit/delete/reorder/complete) unchanged.
+
+---
+
+## 2026-06-28 (Inline budget editing in Budget tab)
+
+### Changed — `components/budget/budget-content.tsx`
+- Added `localBudget`, `editingBudget`, `budgetInput`, `savingBudget` state. All calculations now use `localBudget` instead of `trip.budget` so the card updates immediately after saving without a page reload.
+- **Total Budget card — display mode**: shows amount with a pencil icon (hover-revealed on desktop, always visible on mobile) to enter edit mode. When `localBudget = 0`, shows a "Set budget →" CTA link instead of "€0.00".
+- **Total Budget card — edit mode**: replaces the amount with a number `<Input>` (autofocused, Enter to save, Escape to cancel) and "Save" / "Cancel" buttons with 44px touch targets. Saving calls `supabase.from('trips').update({ budget })`, updates local state, and shows a success toast.
+
+---
+
+## 2026-06-28 (Auto-sync itinerary activity costs to Budget)
+
+### Added — `supabase/migrations/019_budget_itinerary_link.sql`
+Adds `itinerary_item_id UUID REFERENCES itinerary_items(id) ON DELETE CASCADE` to `budget_items`, with a regular index. Must be applied manually in Supabase SQL editor.
+
+### Changed — `lib/types/index.ts`
+Added `itinerary_item_id?: string | null` to `BudgetItem` interface.
+
+### Changed — `components/itinerary/itinerary-content.tsx`
+- `mapActivityTypeToBudgetCategory`: maps `ItineraryItemType` → `BudgetCategory` (`flight→flights`, `hotel→hotels`, `restaurant→food`, `transport/car_rental→transport`, `shopping→shopping`, everything else → `activities`).
+- `syncActivityCostToBudget`: called fire-and-forget after both ADD and EDIT saves. If `cost > 0`: checks for an existing linked `budget_items` row (by `itinerary_item_id`) — updates title/category/actual_amount if found, inserts a new row if not. If `cost = 0`: deletes any linked budget row. ON DELETE CASCADE handles activity deletion automatically.
+- Activity card cost display updated from plain text to `💰 €25 · Budget` badge to confirm the cost is tracked.
+
+### Changed — `components/budget/budget-content.tsx`
+Auto-created budget items (those with `itinerary_item_id` set) show a `📅 Itinerary` pill badge next to the category badge in the All Expenses list.
+
+---
+
+## 2026-06-28 (Remove suggested times from Auto-schedule)
+
+### Changed — `app/api/itinerary/auto-schedule/route.ts`
+- `OptimizedActivity` type simplified to `{ id: string }` — no more `suggested_time`.
+- Claude prompt now asks for a flat JSON array of IDs (`["uuid1","uuid2",...]`) instead of `[{id, suggested_time}]`. `max_tokens` reduced from 1024 to 512.
+- `travelTimesOnly` branch simply maps activities to `{ id }` (no time needed).
+- Both fallback paths also drop `suggested_time`.
+
+### Changed — `components/itinerary/itinerary-content.tsx`
+- `SchedulePreview.optimizedOrder` type narrowed to `{ id: string }[]`.
+- `handleApplySchedule` no longer writes `start_time` to `itinerary_items` — only `order_index` and the three travel-time columns are updated.
+- Preview dialog: removed the `HH:MM` time badge from each activity row; travel-connector `pl-[52px]` offset removed (no time column to align under).
+
+---
+
+## 2026-06-28 (Auto-update travel times after drag-and-drop reorder)
+
+### Changed — `app/api/itinerary/auto-schedule/route.ts`
+Added `travelTimesOnly?: boolean` flag to the POST body. When `true`, the Claude reordering step is skipped entirely — activities are used in the order received — and only the Google Maps Directions leg runs. Returns the same `{ optimizedOrder, travelTimes }` shape.
+
+### Changed — `components/itinerary/itinerary-content.tsx`
+- **`handleDragEnd`**: extracted reordered items before `setDays` so they can be passed directly to the recalculation function. Removed the old "stale hint" approach.
+- **`recalculateTravelTimes`**: new async function called in the background after every drag reorder. Skips days with fewer than 2 activities that have coordinates. Calls `/api/itinerary/auto-schedule` with `travelTimesOnly: true`, then writes results to DB and updates local state. Tracks loading state per day.
+- **`retryRecalcTravelTimes`**: retry entry point called from the per-day failure button.
+- **State**: replaced `staleScheduleDayIds` with `recalculatingDayIds` (Set) and `failedRecalcDayIds` (Set).
+- **DayCard UI**: while recalculating shows a "Updating travel times…" spinner below the activity list; on failure shows an "↻ Update travel times" button.
+- **Auto-schedule full flow** (`handleApplySchedule`) clears `failedRecalcDayIds` for the applied day.
+- **Mobile ✨ Schedule button**: moved from ⋯ overflow dropdown to directly visible in the day header row (icon-only, 44px touch target on mobile; labeled button on desktop).
+
+---
+
 ## 2026-06-27 (Fix: save coordinates when adding from Suggestions)
 
 ### Changed — `components/trips/suggestions-content.tsx`

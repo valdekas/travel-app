@@ -33,7 +33,7 @@ import { ItinerarySuggestionsPanel } from '@/components/itinerary/itinerary-sugg
 import { toast } from 'sonner'
 import {
   Plus, Calendar, Trash2, Loader2, MapPin,
-  ExternalLink, Pencil, Clock, GripVertical, MoreVertical, ChevronDown, CheckCircle2, Sparkles,
+  ExternalLink, Pencil, Clock, GripVertical, MoreVertical, ChevronDown, CheckCircle2, Sparkles, RefreshCw,
 } from 'lucide-react'
 import { parseISO, addDays, format } from 'date-fns'
 import { cn } from '@/lib/utils'
@@ -93,6 +93,18 @@ const EMPTY_FORM: ItemFormState = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+function mapActivityTypeToBudgetCategory(type: string): string {
+  const map: Record<string, string> = {
+    flight:     'flights',
+    hotel:      'hotels',
+    restaurant: 'food',
+    transport:  'transport',
+    car_rental: 'transport',
+    shopping:   'shopping',
+  }
+  return map[type] ?? 'activities'
+}
+
 function getMapsUrl(item: ItineraryItem): string | null {
   if (item.google_maps_url) return item.google_maps_url
   if (item.latitude && item.longitude) return `https://www.google.com/maps?q=${item.latitude},${item.longitude}`
@@ -134,17 +146,6 @@ function ActivityCardInner({ item, currency, isLast, overlay, onEdit, onDelete }
 
   return (
     <>
-      {/* Time column */}
-      <div className="w-11 flex-shrink-0 text-right pt-1">
-        {item.start_time ? (
-          <span className="text-[11px] font-mono font-semibold text-primary leading-none tabular-nums">
-            {item.start_time.slice(0, 5)}
-          </span>
-        ) : (
-          <span className="text-[11px] text-muted-foreground/25">—</span>
-        )}
-      </div>
-
       {/* Timeline dot + connector */}
       <div className="flex flex-col items-center flex-shrink-0 pt-1">
         <div className="w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-background flex-shrink-0" />
@@ -173,7 +174,7 @@ function ActivityCardInner({ item, currency, isLast, overlay, onEdit, onDelete }
               {item.end_time && (
                 <span className="text-xs text-muted-foreground flex items-center gap-0.5">
                   <Clock className="h-3 w-3" />
-                  {item.start_time ? `→ ${item.end_time.slice(0, 5)}` : item.end_time.slice(0, 5)}
+                  {item.end_time.slice(0, 5)}
                 </span>
               )}
               <Badge variant="outline" className="text-[10px] capitalize ml-auto shrink-0">
@@ -210,9 +211,13 @@ function ActivityCardInner({ item, currency, isLast, overlay, onEdit, onDelete }
               </p>
             )}
 
-            {/* Cost */}
+            {/* Cost — shown as budget indicator */}
             {item.cost > 0 && (
-              <p className="text-xs text-muted-foreground mt-1">{formatCurrency(item.cost, currency)}</p>
+              <p className="text-[11px] text-muted-foreground/70 mt-1 flex items-center gap-1">
+                <span>💰</span>
+                <span className="font-medium">{formatCurrency(item.cost, currency)}</span>
+                <span className="text-muted-foreground/40">· Budget</span>
+              </p>
             )}
 
             {/* Expanded: inline Edit / Maps shortcuts */}
@@ -417,7 +422,9 @@ interface DayListProps {
   onToggleComplete: (dayId: string) => void
   onAutoSchedule: (dayId: string) => void
   isScheduling: boolean
-  hasStaleSchedule: boolean
+  isRecalculating: boolean
+  recalcFailed: boolean
+  onRetryRecalc: (dayId: string) => void
   dayIndex: number
   sensors: ReturnType<typeof useSensors>
 }
@@ -425,7 +432,7 @@ interface DayListProps {
 function DayCard({
   day, currency, onDragStart, onDragEnd, onDragCancel,
   activeItem, onOpenAdd, onEdit, onDelete, onDeleteDay, onToggleComplete,
-  onAutoSchedule, isScheduling, hasStaleSchedule, dayIndex, sensors,
+  onAutoSchedule, isScheduling, isRecalculating, recalcFailed, onRetryRecalc, dayIndex, sensors,
 }: DayListProps) {
   const [collapsed, setCollapsed] = useState(false)
   const isCompleted = day.is_completed ?? false
@@ -467,7 +474,7 @@ function DayCard({
                 isCompleted ? 'text-muted-foreground/60' : 'text-muted-foreground',
               )}>
                 <Calendar className="h-3 w-3 flex-shrink-0" />
-                {formatDate(day.date, 'EEEE, MMMM d, yyyy')}
+                {day.date ? formatDate(day.date, 'EEEE, MMMM d, yyyy') : `Day ${dayIndex + 1}`}
               </p>
             </div>
           </div>
@@ -483,11 +490,43 @@ function DayCard({
               {sorted.length} {sorted.length === 1 ? 'activity' : 'activities'}
             </Badge>
 
-            {/* Complete toggle — h-10/w-10 on mobile for 40px touch target */}
+            {/* ✨ Schedule button — icon-only on mobile, labeled on desktop; only when 2+ activities */}
+            {sorted.length >= 2 && (
+              <>
+                {/* Mobile: icon-only, 44px touch target */}
+                <Button
+                  variant="ghost" size="icon"
+                  className="flex sm:hidden h-11 w-11 flex-shrink-0 text-violet-500 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-950/50 disabled:opacity-50"
+                  onClick={() => onAutoSchedule(day.id)}
+                  disabled={isScheduling}
+                  title="Auto-schedule day"
+                >
+                  {isScheduling
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Sparkles className="h-4 w-4" />
+                  }
+                </Button>
+                {/* Desktop: labeled outline button */}
+                <Button
+                  variant="outline" size="sm"
+                  className="hidden sm:flex h-8 px-2.5 gap-1.5 text-xs text-violet-600 border-violet-200 hover:bg-violet-50 hover:text-violet-700 dark:text-violet-400 dark:border-violet-800 dark:hover:bg-violet-950/50 flex-shrink-0"
+                  onClick={() => onAutoSchedule(day.id)}
+                  disabled={isScheduling}
+                >
+                  {isScheduling
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Sparkles className="h-3.5 w-3.5" />
+                  }
+                  {isScheduling ? 'Scheduling…' : 'Schedule'}
+                </Button>
+              </>
+            )}
+
+            {/* Complete toggle — h-11/w-11 on mobile for 44px touch target */}
             <Button
               variant="ghost" size="icon"
               className={cn(
-                'h-10 w-10 md:h-7 md:w-7 flex-shrink-0 transition-colors',
+                'h-11 w-11 md:h-7 md:w-7 flex-shrink-0 transition-colors',
                 isCompleted
                   ? 'text-emerald-500 hover:text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-950/50'
                   : 'text-muted-foreground/40 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30',
@@ -498,27 +537,10 @@ function DayCard({
               <CheckCircle2 className="h-4 w-4" />
             </Button>
 
-            {/* ✨ Schedule button — desktop, only when 2+ activities */}
-            {sorted.length >= 2 && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden sm:flex h-8 px-2.5 gap-1.5 text-xs text-violet-600 border-violet-200 hover:bg-violet-50 hover:text-violet-700 dark:text-violet-400 dark:border-violet-800 dark:hover:bg-violet-950/50 flex-shrink-0"
-                onClick={() => onAutoSchedule(day.id)}
-                disabled={isScheduling}
-              >
-                {isScheduling
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  : <Sparkles className="h-3.5 w-3.5" />
-                }
-                {isScheduling ? 'Scheduling…' : 'Schedule'}
-              </Button>
-            )}
-
             {/* Collapse chevron */}
             <Button
               variant="ghost" size="icon"
-              className="h-10 w-10 md:h-7 md:w-7 flex-shrink-0 text-muted-foreground/50 hover:text-muted-foreground hover:bg-transparent"
+              className="h-11 w-11 md:h-7 md:w-7 flex-shrink-0 text-muted-foreground/50 hover:text-muted-foreground hover:bg-transparent"
               onClick={() => setCollapsed(v => !v)}
               aria-label={collapsed ? 'Expand day' : 'Collapse day'}
             >
@@ -528,31 +550,18 @@ function DayCard({
               )} />
             </Button>
 
-            {/* Day overflow menu — delete + mobile schedule */}
+            {/* Day overflow menu — delete day only */}
             <DropdownMenu>
               <DropdownMenuTrigger render={
                 <Button
                   variant="ghost" size="icon"
-                  className="h-10 w-10 md:h-7 md:w-7 flex-shrink-0 text-muted-foreground/50 hover:text-muted-foreground"
+                  className="h-11 w-11 md:h-7 md:w-7 flex-shrink-0 text-muted-foreground/50 hover:text-muted-foreground"
                   aria-label="Day options"
                 >
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               } />
               <DropdownMenuContent align="end" className="min-w-44">
-                {sorted.length >= 2 && (
-                  <>
-                    <DropdownMenuItem
-                      onClick={() => onAutoSchedule(day.id)}
-                      disabled={isScheduling}
-                      className="sm:hidden"
-                    >
-                      <Sparkles className="h-4 w-4 text-violet-500" />
-                      Auto-schedule day
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator className="sm:hidden" />
-                  </>
-                )}
                 <DropdownMenuItem variant="destructive" onClick={() => onDeleteDay(day.id)}>
                   <Trash2 className="h-4 w-4" />
                   Delete day
@@ -617,11 +626,21 @@ function DayCard({
                   </div>
                 </SortableContext>
 
-                {/* Stale schedule hint — shown after manual drag clears travel times */}
-                {hasStaleSchedule && (
-                  <p className="text-[11px] text-muted-foreground/50 text-center -mt-1 mb-2">
-                    ♻️ Travel times cleared — re-run ✨ Schedule to update
+                {/* Travel time recalculation status */}
+                {isRecalculating && (
+                  <p className="text-[11px] text-muted-foreground/50 text-center -mt-1 mb-2 flex items-center justify-center gap-1.5">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Updating travel times…
                   </p>
+                )}
+                {!isRecalculating && recalcFailed && (
+                  <button
+                    className="w-full text-[11px] text-muted-foreground/50 hover:text-muted-foreground/80 text-center -mt-1 mb-2 flex items-center justify-center gap-1 transition-colors"
+                    onClick={() => onRetryRecalc(day.id)}
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Update travel times
+                  </button>
                 )}
 
                 <DragOverlay
@@ -662,7 +681,7 @@ interface ItineraryContentProps {
 interface SchedulePreview {
   dayId:          string
   dayNumber:      number
-  optimizedOrder: { id: string; suggested_time: string }[]
+  optimizedOrder: { id: string }[]
   travelTimes:    { fromId: string; toId: string; duration: string; distance: string; mode: string }[]
   activities:     ItineraryItem[]
 }
@@ -681,9 +700,10 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
 
   // Auto-schedule state
-  const [schedulingDayId, setSchedulingDayId]       = useState<string | null>(null)
-  const [schedulePreview, setSchedulePreview]         = useState<SchedulePreview | null>(null)
-  const [staleScheduleDayIds, setStaleScheduleDayIds] = useState<Set<string>>(new Set())
+  const [schedulingDayId, setSchedulingDayId]         = useState<string | null>(null)
+  const [schedulePreview, setSchedulePreview]           = useState<SchedulePreview | null>(null)
+  const [recalculatingDayIds, setRecalculatingDayIds]   = useState<Set<string>>(new Set())
+  const [failedRecalcDayIds, setFailedRecalcDayIds]     = useState<Set<string>>(new Set())
 
   const [itemForm, setItemForm] = useState<ItemFormState>(EMPTY_FORM)
   const locationRef = useRef<LocationRef>(EMPTY_LOCATION)
@@ -711,48 +731,41 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
     const { active, over } = event
     if (!over || active.id === over.id) return
 
-    setDays(prev => prev.map(day => {
-      if (day.id !== dayId) return day
+    const day = days.find(d => d.id === dayId)
+    if (!day) return
 
-      const items = byOrderIndex(day.items ?? [])
-      const oldIdx = items.findIndex(i => i.id === active.id)
-      const newIdx = items.findIndex(i => i.id === over.id)
-      if (oldIdx === -1 || newIdx === -1) return day
+    const items = byOrderIndex(day.items ?? [])
+    const oldIdx = items.findIndex(i => i.id === active.id)
+    const newIdx = items.findIndex(i => i.id === over.id)
+    if (oldIdx === -1 || newIdx === -1) return
 
-      // Track whether this day had travel times (to show the stale hint)
-      const hadTravelTimes = items.some(i => i.travel_time_to_next != null)
+    const reordered = arrayMove(items, oldIdx, newIdx).map((item, idx) => ({
+      ...item,
+      order_index:             idx,
+      travel_time_to_next:     null as string | null,
+      travel_distance_to_next: null as string | null,
+      travel_mode_to_next:     null as string | null,
+    }))
 
-      const reordered = arrayMove(items, oldIdx, newIdx)
+    // Update local state immediately (clear travel times; recalc will fill them back in)
+    setDays(prev => prev.map(d => d.id === dayId ? { ...d, items: reordered } : d))
 
-      // Persist new order + clear stale travel times (fire and forget)
-      reordered.forEach((item, idx) => {
-        supabase
-          .from('itinerary_items')
-          .update({
-            order_index:             idx,
-            travel_time_to_next:     null,
-            travel_distance_to_next: null,
-            travel_mode_to_next:     null,
-          })
-          .eq('id', item.id)
-          .then(({ error }) => { if (error) console.error('Order persist failed:', error) })
-      })
-
-      if (hadTravelTimes) {
-        setStaleScheduleDayIds(prev => new Set(prev).add(dayId))
-      }
-
-      return {
-        ...day,
-        items: reordered.map((item, idx) => ({
-          ...item,
-          order_index:             idx,
+    // Persist new order + clear travel times (fire and forget)
+    reordered.forEach(item => {
+      supabase
+        .from('itinerary_items')
+        .update({
+          order_index:             item.order_index,
           travel_time_to_next:     null,
           travel_distance_to_next: null,
           travel_mode_to_next:     null,
-        })),
-      }
-    }))
+        })
+        .eq('id', item.id)
+        .then(({ error }) => { if (error) console.error('Order persist failed:', error) })
+    })
+
+    // Background travel time recalculation for the new order
+    recalculateTravelTimes(dayId, reordered)
   }
 
   function handleDragCancel() {
@@ -858,6 +871,7 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
           ...day,
           items: day.items.map(i => i.id === editItem.id ? data : i),
         })))
+        syncActivityCostToBudget(data)
         toast.success('Activity updated')
       } else {
         const dayId = addItemDialog!
@@ -904,6 +918,7 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
           )
           return { ...day, items: [...shiftedItems, data] }
         }))
+        syncActivityCostToBudget(data)
         toast.success('Activity added')
       }
       closeDialog()
@@ -1040,17 +1055,15 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
       return {
         id:                      o.id,
         order_index:             idx,
-        start_time:              o.suggested_time,
-        travel_time_to_next:     travel?.duration     ?? null,
-        travel_distance_to_next: travel?.distance     ?? null,
-        travel_mode_to_next:     travel?.mode         ?? null,
+        travel_time_to_next:     travel?.duration ?? null,
+        travel_distance_to_next: travel?.distance ?? null,
+        travel_mode_to_next:     travel?.mode     ?? null,
       }
     })
 
     await Promise.all(updates.map(u =>
       supabase.from('itinerary_items').update({
         order_index:             u.order_index,
-        start_time:              u.start_time,
         travel_time_to_next:     u.travel_time_to_next,
         travel_distance_to_next: u.travel_distance_to_next,
         travel_mode_to_next:     u.travel_mode_to_next,
@@ -1068,9 +1081,121 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
       }
     }))
 
-    setStaleScheduleDayIds(prev => { const n = new Set(prev); n.delete(dayId); return n })
+    setFailedRecalcDayIds(prev => { const n = new Set(prev); n.delete(dayId); return n })
     setSchedulePreview(null)
     toast.success('Schedule applied!')
+  }
+
+  // ── Budget sync ───────────────────────────────────────────────────────────────
+
+  async function syncActivityCostToBudget(item: { id: string; trip_id: string; title: string; type: string; cost: number }) {
+    if (item.cost > 0) {
+      const { data: existing } = await supabase
+        .from('budget_items')
+        .select('id')
+        .eq('itinerary_item_id', item.id)
+        .maybeSingle()
+
+      if (existing) {
+        supabase.from('budget_items').update({
+          title:         item.title,
+          category:      mapActivityTypeToBudgetCategory(item.type),
+          actual_amount: item.cost,
+        }).eq('id', existing.id)
+          .then(({ error }) => { if (error) console.error('Budget sync update failed:', error) })
+      } else {
+        supabase.from('budget_items').insert({
+          trip_id:           item.trip_id,
+          itinerary_item_id: item.id,
+          title:             item.title,
+          category:          mapActivityTypeToBudgetCategory(item.type),
+          actual_amount:     item.cost,
+          planned_amount:    0,
+          currency:          trip.currency,
+          paid:              false,
+        }).then(({ error }) => { if (error) console.error('Budget sync insert failed:', error) })
+      }
+    } else {
+      supabase.from('budget_items').delete()
+        .eq('itinerary_item_id', item.id)
+        .then(({ error }) => { if (error) console.error('Budget sync delete failed:', error) })
+    }
+  }
+
+  // ── Background travel-time recalculation (after drag reorder) ────────────────
+
+  async function recalculateTravelTimes(dayId: string, reorderedItems: ItineraryItem[]) {
+    const itemsWithCoords = reorderedItems.filter(i => i.latitude != null && i.longitude != null)
+    if (itemsWithCoords.length < 2) return
+
+    setRecalculatingDayIds(prev => new Set(prev).add(dayId))
+    setFailedRecalcDayIds(prev => { const n = new Set(prev); n.delete(dayId); return n })
+
+    try {
+      const res = await fetch('/api/itinerary/auto-schedule', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          dayId,
+          tripId:         reorderedItems[0]?.trip_id ?? '',
+          activities:     reorderedItems.map(i => ({
+            id:            i.id,
+            name:          i.title,
+            category:      i.type,
+            start_time:    i.start_time ?? null,
+            location_name: i.location_name ?? null,
+            lat:           i.latitude ?? null,
+            lng:           i.longitude ?? null,
+          })),
+          city:            trip.city || trip.country,
+          country:         trip.country,
+          travelTimesOnly: true,
+        }),
+      })
+      if (!res.ok) throw new Error('Recalculation failed')
+
+      const { travelTimes } = await res.json() as {
+        travelTimes: { fromId: string; toId: string; duration: string; distance: string; mode: string }[]
+      }
+
+      if (travelTimes?.length > 0) {
+        // Persist to DB
+        await Promise.all(
+          travelTimes.map(tt =>
+            supabase
+              .from('itinerary_items')
+              .update({
+                travel_time_to_next:     tt.duration,
+                travel_distance_to_next: tt.distance,
+                travel_mode_to_next:     tt.mode,
+              })
+              .eq('id', tt.fromId)
+          )
+        )
+        // Update local state
+        setDays(prev => prev.map(day =>
+          day.id !== dayId ? day : {
+            ...day,
+            items: day.items.map(item => {
+              const tt = travelTimes.find(t => t.fromId === item.id)
+              return tt
+                ? { ...item, travel_time_to_next: tt.duration, travel_distance_to_next: tt.distance, travel_mode_to_next: tt.mode }
+                : item
+            }),
+          }
+        ))
+      }
+    } catch {
+      setFailedRecalcDayIds(prev => new Set(prev).add(dayId))
+    } finally {
+      setRecalculatingDayIds(prev => { const n = new Set(prev); n.delete(dayId); return n })
+    }
+  }
+
+  function retryRecalcTravelTimes(dayId: string) {
+    const day = days.find(d => d.id === dayId)
+    if (!day) return
+    recalculateTravelTimes(dayId, byOrderIndex(day.items ?? []))
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -1136,7 +1261,9 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
               onToggleComplete={toggleDayComplete}
               onAutoSchedule={handleAutoSchedule}
               isScheduling={schedulingDayId === day.id}
-              hasStaleSchedule={staleScheduleDayIds.has(day.id)}
+              isRecalculating={recalculatingDayIds.has(day.id)}
+              recalcFailed={failedRecalcDayIds.has(day.id)}
+              onRetryRecalc={retryRecalcTravelTimes}
             />
           ))}
         </div>
@@ -1293,21 +1420,18 @@ export function ItineraryContent({ trip, initialDays }: ItineraryContentProps) {
                   <Fragment key={o.id}>
                     {/* Activity row */}
                     <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 bg-muted/40 border border-border/30">
-                      <span className="text-[11px] font-mono font-semibold text-primary w-10 text-right flex-shrink-0">
-                        {o.suggested_time}
-                      </span>
                       <span className="text-sm font-medium flex-1 min-w-0 truncate">
                         {ITINERARY_TYPE_ICONS[activity.type]} {activity.title}
                       </span>
                       {activity.location_name && (
-                        <span className="text-[10px] text-muted-foreground hidden sm:block truncate max-w-[120px]">
+                        <span className="text-[10px] text-muted-foreground hidden sm:block truncate max-w-[140px]">
                           {activity.location_name}
                         </span>
                       )}
                     </div>
                     {/* Travel time connector */}
                     {!isLast && (
-                      <div className="flex items-center gap-2 pl-[52px] py-1.5 text-[11px] text-muted-foreground/55">
+                      <div className="flex items-center gap-2 pl-3 py-1.5 text-[11px] text-muted-foreground/55">
                         {travel ? (
                           <>
                             <div className="h-px w-3 bg-border/40 flex-shrink-0" />

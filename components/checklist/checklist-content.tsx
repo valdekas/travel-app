@@ -33,7 +33,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DragHint } from '@/components/shared/drag-hint'
 import { toast } from 'sonner'
-import { Plus, CheckSquare, FileText, Package, Trash2, Loader2, GripVertical, MoreVertical, Circle } from 'lucide-react'
+import { Plus, CheckSquare, FileText, Package, Trash2, Loader2, GripVertical, MoreVertical, Circle, Sparkles } from 'lucide-react'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -293,14 +293,45 @@ function CategoryDndList({
   )
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
+// ── Suggestion types ───────────────────────────────────────────────────────────
 
-interface ChecklistContentProps {
-  tripId: string
-  initialItems: ChecklistItem[]
+interface SuggestionItem {
+  name:     string
+  category: ChecklistCategory
+  priority: 'essential' | 'recommended' | 'optional'
+  reason:   string
 }
 
-export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps) {
+const PRIORITY_COLORS: Record<SuggestionItem['priority'], string> = {
+  essential:   'bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20',
+  recommended: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20',
+  optional:    'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20',
+}
+
+const PRIORITY_LABELS: Record<SuggestionItem['priority'], string> = {
+  essential:   '🔴 Essential',
+  recommended: '🟡 Recommended',
+  optional:    '🟢 Optional',
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
+
+interface TripContext {
+  city:          string
+  country:       string
+  duration:      number
+  startDate:     string
+  tripTypes:     string[]
+  existingItems: string[]
+}
+
+interface ChecklistContentProps {
+  tripId:       string
+  initialItems: ChecklistItem[]
+  tripContext?: TripContext
+}
+
+export function ChecklistContent({ tripId, initialItems, tripContext }: ChecklistContentProps) {
   const [items, setItems] = useState<ChecklistItem[]>(initialItems)
   const [addOpen, setAddOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -314,6 +345,17 @@ export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps
     notes:    '',
   })
   const set = (k: string, v: string | null) => setForm(f => ({ ...f, [k]: v ?? '' }))
+
+  // Suggestions state
+  const [suggestionsOpen, setSuggestionsOpen]         = useState(false)
+  const [suggestStep, setSuggestStep]                 = useState<1 | 2>(1)
+  const [generating, setGenerating]                   = useState(false)
+  const [addingSelected, setAddingSelected]           = useState(false)
+  const [suggestions, setSuggestions]                 = useState<SuggestionItem[]>([])
+  const [selectedNames, setSelectedNames]             = useState<Set<string>>(new Set())
+  const [priorityFilter, setPriorityFilter]           = useState<Set<SuggestionItem['priority']>>(
+    new Set(['essential', 'recommended'])
+  )
 
   const total = items.length
   const done  = items.filter(i => i.completed).length
@@ -354,6 +396,114 @@ export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps
     }
   }
 
+  async function generateSuggestions() {
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/checklist/suggestions', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          city:          tripContext?.city          ?? '',
+          country:       tripContext?.country       ?? '',
+          duration:      tripContext?.duration      ?? 7,
+          startDate:     tripContext?.startDate     ?? '',
+          tripTypes:     tripContext?.tripTypes     ?? [],
+          existingItems: tripContext?.existingItems ?? items.map(i => i.title),
+        }),
+      })
+      if (!res.ok) throw new Error('Generation failed')
+      const { suggestions: data } = await res.json() as { suggestions: SuggestionItem[] }
+      const filtered = data.filter(s => priorityFilter.has(s.priority))
+      setSuggestions(filtered)
+      // Pre-select all essential + recommended
+      setSelectedNames(new Set(
+        filtered
+          .filter(s => s.priority === 'essential' || s.priority === 'recommended')
+          .map(s => s.name)
+      ))
+      setSuggestStep(2)
+    } catch {
+      toast.error('Failed to generate suggestions. Please try again.')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function addSelectedSuggestions() {
+    const toAdd = suggestions.filter(s => selectedNames.has(s.name))
+    if (toAdd.length === 0) { toast.error('Select at least one item'); return }
+    setAddingSelected(true)
+    try {
+      const existingTitles = new Set(items.map(i => i.title.toLowerCase()))
+      const newItems = toAdd.filter(s => !existingTitles.has(s.name.toLowerCase()))
+
+      if (newItems.length === 0) {
+        toast.info('All selected items are already in your checklist')
+        setSuggestionsOpen(false)
+        return
+      }
+
+      const rows = newItems.map(s => ({
+        trip_id:     tripId,
+        title:       s.name,
+        category:    s.category,
+        completed:   false,
+        order_index: items.filter(i => i.category === s.category).length,
+      }))
+
+      const { data, error } = await supabase
+        .from('checklist_items')
+        .insert(rows)
+        .select()
+      if (error) throw error
+
+      setItems(prev => [...prev, ...(data ?? [])])
+      toast.success(`${newItems.length} item${newItems.length !== 1 ? 's' : ''} added to your checklist`)
+      setSuggestionsOpen(false)
+      setSuggestStep(1)
+      setSuggestions([])
+      setSelectedNames(new Set())
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add items')
+    } finally {
+      setAddingSelected(false)
+    }
+  }
+
+  function toggleSuggestionSelected(name: string) {
+    setSelectedNames(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  function togglePriorityFilter(p: SuggestionItem['priority']) {
+    setPriorityFilter(prev => {
+      const next = new Set(prev)
+      if (next.has(p)) next.delete(p)
+      else next.add(p)
+      return next
+    })
+  }
+
+  function openSuggestionsDialog() {
+    setSuggestStep(1)
+    setSuggestions([])
+    setSelectedNames(new Set())
+    setPriorityFilter(new Set(['essential', 'recommended']))
+    setSuggestionsOpen(true)
+  }
+
+  function closeSuggestionsDialog() {
+    setSuggestionsOpen(false)
+    setSuggestStep(1)
+    setSuggestions([])
+    setSelectedNames(new Set())
+    setGenerating(false)
+  }
+
   function handleReorder(category: ChecklistCategory, reordered: ChecklistItem[]) {
     // Update order_index on the reordered slice, keep other categories intact
     const updated = reordered.map((item, idx) => ({ ...item, order_index: idx }))
@@ -387,9 +537,20 @@ export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps
             <p className="text-xs text-muted-foreground mt-0.5">Prepare everything before departure · {done}/{total} done</p>
           </div>
         </div>
-        <Button onClick={() => setAddOpen(true)} size="sm" className="gap-1.5 shrink-0">
-          <Plus className="h-4 w-4" /> Add Task
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            onClick={openSuggestionsDialog}
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-violet-600 border-violet-200 hover:bg-violet-50 hover:text-violet-700 dark:text-violet-400 dark:border-violet-800 dark:hover:bg-violet-950/50"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Suggestions</span>
+          </Button>
+          <Button onClick={() => setAddOpen(true)} size="sm" className="gap-1.5">
+            <Plus className="h-4 w-4" /> Add Task
+          </Button>
+        </div>
       </div>
 
       {/* Progress bar */}
@@ -533,6 +694,207 @@ export function ChecklistContent({ tripId, initialItems }: ChecklistContentProps
         onConfirm={() => { if (pendingDeleteId) deleteItem(pendingDeleteId) }}
         confirmLabel="Delete"
       />
+
+      {/* ── Suggestions dialog ── */}
+      <Dialog open={suggestionsOpen} onOpenChange={open => { if (!open) closeSuggestionsDialog() }}>
+        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col gap-0 p-0">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/50 shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="h-4 w-4 text-violet-500" />
+              Smart Packing Suggestions
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {tripContext?.city
+                ? `AI-powered list for your ${tripContext.duration}-day trip to ${tripContext.city}`
+                : 'AI-powered packing list for your trip'
+              }
+            </p>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {/* ── Step 1: Priority filter ── */}
+            {suggestStep === 1 && (
+              <div className="px-5 py-5 space-y-5">
+                <div>
+                  <p className="text-sm font-medium mb-3">Include items by priority:</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {(['essential', 'recommended', 'optional'] as const).map(p => (
+                      <button
+                        key={p}
+                        onClick={() => togglePriorityFilter(p)}
+                        className={cn(
+                          'flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors',
+                          priorityFilter.has(p)
+                            ? PRIORITY_COLORS[p]
+                            : 'border-border/50 text-muted-foreground bg-muted/30 hover:bg-muted/50',
+                        )}
+                      >
+                        <div className={cn(
+                          'w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0',
+                          priorityFilter.has(p) ? 'bg-current border-current' : 'border-muted-foreground/40',
+                        )}>
+                          {priorityFilter.has(p) && (
+                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        {PRIORITY_LABELS[p]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Items already in your checklist will be skipped automatically.
+                </p>
+              </div>
+            )}
+
+            {/* ── Step 2: Loading skeleton ── */}
+            {suggestStep === 2 && generating && (
+              <div className="px-5 py-5 space-y-3">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-border/30 animate-pulse">
+                    <div className="w-5 h-5 rounded bg-muted flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3.5 bg-muted rounded w-3/4" />
+                      <div className="h-2.5 bg-muted/60 rounded w-1/2" />
+                    </div>
+                    <div className="h-5 w-20 bg-muted rounded-full" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Step 2: Results ── */}
+            {suggestStep === 2 && !generating && suggestions.length > 0 && (
+              <div className="px-5 py-4 space-y-4">
+                {/* Select all essential shortcut */}
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    {selectedNames.size} of {suggestions.length} selected
+                  </p>
+                  <button
+                    className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                    onClick={() => setSelectedNames(new Set(
+                      suggestions.filter(s => s.priority === 'essential').map(s => s.name)
+                    ))}
+                  >
+                    Select only essentials
+                  </button>
+                </div>
+
+                {/* Group by category */}
+                {(['documents', 'packing', 'custom'] as ChecklistCategory[]).map(cat => {
+                  const catItems = suggestions.filter(s => s.category === cat)
+                  if (catItems.length === 0) return null
+                  const catLabel = cat === 'documents' ? '📄 Documents' : cat === 'packing' ? '🎒 Packing' : '⚙️ Custom'
+                  return (
+                    <div key={cat}>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                        {catLabel} ({catItems.length})
+                      </p>
+                      <div className="space-y-2">
+                        {catItems.map(s => (
+                          <button
+                            key={s.name}
+                            onClick={() => toggleSuggestionSelected(s.name)}
+                            className={cn(
+                              'w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-colors',
+                              selectedNames.has(s.name)
+                                ? 'bg-violet-50 border-violet-200 dark:bg-violet-950/30 dark:border-violet-800/50'
+                                : 'bg-muted/20 border-border/40 hover:border-border/70',
+                            )}
+                          >
+                            <div className={cn(
+                              'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors',
+                              selectedNames.has(s.name)
+                                ? 'bg-violet-600 border-violet-600'
+                                : 'border-muted-foreground/40',
+                            )}>
+                              {selectedNames.has(s.name) && (
+                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-medium text-sm block">{s.name}</span>
+                              {s.reason && (
+                                <span className="text-[11px] text-muted-foreground mt-0.5 block">{s.reason}</span>
+                              )}
+                            </div>
+                            <span className={cn(
+                              'text-[10px] font-medium px-2 py-0.5 rounded-full border flex-shrink-0',
+                              PRIORITY_COLORS[s.priority],
+                            )}>
+                              {s.priority}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* ── Step 2: No results ── */}
+            {suggestStep === 2 && !generating && suggestions.length === 0 && (
+              <div className="px-5 py-10 text-center text-muted-foreground">
+                <p className="text-sm">No suggestions generated. Try adjusting the priority filter.</p>
+              </div>
+            )}
+          </div>
+
+          {/* ── Footer actions ── */}
+          <div className="px-5 py-4 border-t border-border/50 shrink-0">
+            {suggestStep === 1 && (
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={closeSuggestionsDialog}>
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-violet-600 hover:bg-violet-700 text-white gap-1.5"
+                  onClick={generateSuggestions}
+                  disabled={generating || priorityFilter.size === 0}
+                >
+                  {generating
+                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
+                    : <><Sparkles className="h-3.5 w-3.5" /> Generate Suggestions</>
+                  }
+                </Button>
+              </div>
+            )}
+            {suggestStep === 2 && !generating && (
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => { setSuggestStep(1); setSuggestions([]) }}
+                >
+                  Back
+                </Button>
+                <Button
+                  className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
+                  onClick={addSelectedSuggestions}
+                  disabled={addingSelected || selectedNames.size === 0}
+                >
+                  {addingSelected
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : `Add ${selectedNames.size} Selected`
+                  }
+                </Button>
+              </div>
+            )}
+            {suggestStep === 2 && generating && (
+              <Button variant="outline" className="w-full" onClick={closeSuggestionsDialog}>
+                Cancel
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

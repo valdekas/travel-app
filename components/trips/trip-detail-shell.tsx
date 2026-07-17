@@ -14,7 +14,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import {
   LayoutDashboard, MapPin, CheckSquare, BarChart3, BookOpen,
-  Calendar, ChevronLeft, Trash2, Loader2, ClipboardCheck, Camera, Upload, ImageIcon, RotateCcw, Sparkles,
+  Calendar, ChevronLeft, Trash2, Loader2, ClipboardCheck, Camera, Upload, ImageIcon, RotateCcw, Sparkles, BedDouble, Plane,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EditTripDialog } from './edit-trip-dialog'
@@ -27,6 +27,8 @@ const TABS = [
   { label: 'Checklist',    href: 'checklist',    icon: CheckSquare },
   { label: 'Budget',       href: 'budget',       icon: BarChart3 },
   { label: 'Journal',      href: 'journal',      icon: BookOpen },
+  { label: 'Hotels',       href: 'hotels',       icon: BedDouble },
+  { label: 'Flights',      href: 'flights',      icon: Plane },
 ]
 
 interface TripDetailShellProps {
@@ -297,8 +299,9 @@ export function TripDetailShell({ trip, children }: TripDetailShellProps) {
                 <p className="text-white/60 text-xs mt-0.5 truncate">
                   {trip.country_code ? <><FlagImg code={trip.country_code} className="w-4 h-3" />&nbsp;</> : '🌍 '}
                   {trip.city ? `${trip.city} · ` : ''}{trip.country}
-                  {trip.start_date && ` · ${formatDate(trip.start_date, 'MMM d')}`}
-                  {trip.end_date && ` – ${formatDate(trip.end_date, 'MMM d, yyyy')}`}
+                  {trip.start_date
+                    ? ` · ${formatDate(trip.start_date, 'MMM d')}${trip.end_date ? ` – ${formatDate(trip.end_date, 'MMM d, yyyy')}` : ''}`
+                    : ' · Dates not set'}
                 </p>
               </div>
 

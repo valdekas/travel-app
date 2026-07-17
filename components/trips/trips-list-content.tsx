@@ -28,8 +28,6 @@ const STATUS_FILTERS: { value: string; label: string }[] = [
 export function TripsListContent({ trips }: TripsListContentProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [view, setView] = useState<'grid' | 'list'>('grid')
-
   const filtered = trips.filter(t => {
     const matchesSearch =
       t.name.toLowerCase().includes(search.toLowerCase()) ||

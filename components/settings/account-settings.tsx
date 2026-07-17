@@ -8,26 +8,40 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
-import { Camera, Loader2 } from 'lucide-react'
+import { PlacesAutocomplete } from '@/components/ui/places-autocomplete'
+import { Camera, Loader2, MapPin } from 'lucide-react'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 
-interface Props {
-  user: SupabaseUser
+interface HomeSettings {
+  home_city:    string | null
+  home_country: string | null
+  home_airport: string | null
 }
 
-export function AccountSettings({ user }: Props) {
+interface Props {
+  user:         SupabaseUser
+  userId:       string
+  homeSettings: HomeSettings
+}
+
+export function AccountSettings({ user, userId, homeSettings }: Props) {
   const supabase = createClient()
-  const fileRef = useRef<HTMLInputElement>(null)
+  const fileRef  = useRef<HTMLInputElement>(null)
 
   const meta = user.user_metadata ?? {}
-  const [fullName, setFullName] = useState<string>(meta.full_name ?? '')
-  const [username, setUsername] = useState<string>(meta.username ?? '')
+  const [fullName,  setFullName]  = useState<string>(meta.full_name  ?? '')
+  const [username,  setUsername]  = useState<string>(meta.username   ?? '')
   const [avatarUrl, setAvatarUrl] = useState<string>(meta.avatar_url ?? '')
-  const [saving, setSaving] = useState(false)
+  const [saving,    setSaving]    = useState(false)
 
-  const [newPw, setNewPw] = useState('')
-  const [confirmPw, setConfirmPw] = useState('')
-  const [changingPw, setChangingPw] = useState(false)
+  const [newPw,       setNewPw]       = useState('')
+  const [confirmPw,   setConfirmPw]   = useState('')
+  const [changingPw,  setChangingPw]  = useState(false)
+
+  const [homeCity,    setHomeCity]    = useState(homeSettings.home_city    ?? '')
+  const [homeCountry, setHomeCountry] = useState(homeSettings.home_country ?? '')
+  const [homeAirport, setHomeAirport] = useState(homeSettings.home_airport ?? '')
+  const [savingHome,  setSavingHome]  = useState(false)
 
   const initials = fullName
     ? fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -37,7 +51,7 @@ export function AccountSettings({ user }: Props) {
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 2 * 1024 * 1024) { toast.error('Image must be under 2 MB'); return }
-    const ext = file.name.split('.').pop()
+    const ext  = file.name.split('.').pop()
     const path = `${user.id}/avatar.${ext}`
     const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
     if (uploadError) { toast.error('Upload failed: ' + uploadError.message); return }
@@ -63,7 +77,7 @@ export function AccountSettings({ user }: Props) {
 
   async function handleChangePassword() {
     if (newPw !== confirmPw) { toast.error('Passwords do not match'); return }
-    if (newPw.length < 8) { toast.error('Password must be at least 8 characters'); return }
+    if (newPw.length < 8)    { toast.error('Password must be at least 8 characters'); return }
     setChangingPw(true)
     try {
       const { error } = await supabase.auth.updateUser({ password: newPw })
@@ -74,6 +88,29 @@ export function AccountSettings({ user }: Props) {
       toast.error((err as Error).message ?? 'Failed to update password')
     } finally {
       setChangingPw(false)
+    }
+  }
+
+  async function handleSaveHomeLocation() {
+    setSavingHome(true)
+    try {
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert(
+          {
+            user_id:      userId,
+            home_city:    homeCity    || null,
+            home_country: homeCountry || null,
+            home_airport: homeAirport || null,
+          },
+          { onConflict: 'user_id' }
+        )
+      if (error) throw error
+      toast.success('Home location saved')
+    } catch (err: unknown) {
+      toast.error((err as Error).message ?? 'Failed to save home location')
+    } finally {
+      setSavingHome(false)
     }
   }
 
@@ -141,6 +178,61 @@ export function AccountSettings({ user }: Props) {
               className="border-0 shadow-none p-0 h-auto focus-visible:ring-0 text-sm bg-transparent opacity-50 cursor-not-allowed"
             />
           </div>
+        </div>
+      </div>
+
+      {/* Home Location */}
+      <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
+        <div className="px-4 py-3 border-b border-border/60">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Home Location</p>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">Your departure city for flight searches</p>
+        </div>
+        <div className="divide-y divide-border/40">
+          <div className="px-4 py-3.5">
+            <Label className="text-sm text-muted-foreground mb-2 block">City</Label>
+            <PlacesAutocomplete
+              value={homeCity}
+              onChange={setHomeCity}
+              onPlaceSelect={(place) => {
+                setHomeCity(place.city || place.name)
+                setHomeCountry(place.country)
+              }}
+              placeholder="e.g. Dublin, London, Vilnius"
+            />
+          </div>
+          <div className="px-4 py-3.5">
+            <div className="flex items-start gap-3">
+              <Label htmlFor="homeAirport" className="w-24 text-sm flex-shrink-0 text-muted-foreground pt-px">Airport</Label>
+              <div className="flex-1 min-w-0">
+                <Input
+                  id="homeAirport"
+                  value={homeAirport}
+                  onChange={e => setHomeAirport(e.target.value.toUpperCase().slice(0, 3))}
+                  placeholder="DUB"
+                  maxLength={3}
+                  className="border-0 shadow-none p-0 h-auto focus-visible:ring-0 text-sm bg-transparent uppercase font-mono tracking-widest"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  3-letter IATA code (e.g. DUB, LHR, JFK) — optional
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="px-4 py-3 border-t border-border/60">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSaveHomeLocation}
+            disabled={savingHome}
+            className="gap-2 w-full md:w-auto"
+          >
+            {savingHome && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save Home Location
+          </Button>
         </div>
       </div>
 

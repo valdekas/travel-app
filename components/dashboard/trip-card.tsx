@@ -102,12 +102,17 @@ export function TripCard({ trip }: TripCardProps) {
             <div className="bg-black/35 backdrop-blur-md border border-white/15 rounded-full px-2.5 py-1">
               {trip.country_code ? <FlagImg code={trip.country_code} className="w-5 h-[15px]" /> : <span className="text-sm">✈️</span>}
             </div>
-            {days !== null && days >= 0 && (
+            {!trip.start_date ? (
+              <div className="bg-black/35 backdrop-blur-md border border-white/15 rounded-xl px-2.5 py-1 text-center">
+                <div className="text-white/60 text-[9px] font-semibold uppercase tracking-wider leading-none">Dates</div>
+                <div className="text-white/50 text-[9px] leading-none mt-0.5 font-medium">TBD</div>
+              </div>
+            ) : days !== null && days >= 0 ? (
               <div className={`${countdownColor} backdrop-blur-md border border-white/15 rounded-xl px-2.5 py-1 text-center min-w-[44px]`}>
                 <div className="text-white text-sm font-bold leading-none tabular-nums">{days}</div>
                 <div className="text-white/65 text-[9px] leading-none mt-0.5 font-medium">days</div>
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Bottom: trip info */}
@@ -115,10 +120,15 @@ export function TripCard({ trip }: TripCardProps) {
             <p className="text-white/60 text-[10px] font-semibold uppercase tracking-widest mb-0.5">{trip.city ? `${trip.city} · ${trip.country}` : trip.country}</p>
             <h3 className="text-white font-bold text-base leading-tight mb-1.5 line-clamp-1">{trip.name}</h3>
             <div className="flex items-center gap-3 text-white/65 text-xs">
-              {trip.start_date && (
+              {trip.start_date ? (
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3 shrink-0" />
                   {formatDate(trip.start_date, 'MMM d')}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-white/45">
+                  <Calendar className="h-3 w-3 shrink-0" />
+                  Add dates
                 </span>
               )}
               {duration && (

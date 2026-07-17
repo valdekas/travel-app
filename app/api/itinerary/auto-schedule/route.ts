@@ -14,8 +14,7 @@ interface ActivityInput {
 }
 
 interface OptimizedActivity {
-  id:             string
-  suggested_time: string
+  id: string
 }
 
 interface TravelTime {
@@ -55,12 +54,13 @@ async function getDirections(
 }
 
 export async function POST(req: NextRequest) {
-  const { activities, city, country } = await req.json() as {
-    dayId:      string
-    tripId:     string
-    activities: ActivityInput[]
-    city:       string
-    country:    string
+  const { activities, city, country, travelTimesOnly } = await req.json() as {
+    dayId:           string
+    tripId:          string
+    activities:      ActivityInput[]
+    city:            string
+    country:         string
+    travelTimesOnly?: boolean
   }
 
   if (!activities || activities.length < 2) {
@@ -70,62 +70,64 @@ export async function POST(req: NextRequest) {
   console.log('[AutoSchedule] Activities received:', activities.length)
   console.log('[AutoSchedule] Activities with coords:', activities.filter(a => a.lat && a.lng).length)
 
-  // ── Step 1: Claude optimises the order ───────────────────────────────────────
-
-  const anthropic = new Anthropic()
-
-  const activityList = activities.map(a => ({
-    id:           a.id,
-    name:         a.name,
-    category:     a.category,
-    location:     a.location_name ?? null,
-    current_time: a.start_time ?? null,
-  }))
-
-  const prompt = `You are a travel expert. Optimise the order of these activities for a single day in ${city}, ${country}.
-
-Rules:
-- Museums and attractions: morning 09:00–13:00
-- Lunch (restaurants): around 12:30–13:00
-- More attractions: afternoon 14:00–18:00
-- Dinner: after 19:00
-- Bars and nightlife: after 20:00
-- Group geographically close activities together to minimise travel
-- Avoid backtracking
-
-Activities to schedule:
-${JSON.stringify(activityList, null, 2)}
-
-Return ONLY a valid JSON array — no markdown, no code fences, no explanation.
-Format: [{ "id": "uuid", "suggested_time": "HH:MM" }]
-Include ALL ${activities.length} activities. Start the day around 09:00.`
+  // ── Step 1: order optimisation (skipped when travelTimesOnly) ──────────────
 
   let optimizedOrder: OptimizedActivity[] = []
 
-  try {
-    const message = await anthropic.messages.create({
-      model:      'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      messages:   [{ role: 'user', content: prompt }],
-    })
+  if (travelTimesOnly) {
+    // Keep activities in the received order — no reordering needed
+    optimizedOrder = activities.map(a => ({ id: a.id }))
+  } else {
+    const anthropic = new Anthropic()
 
-    const raw = message.content[0].type === 'text' ? message.content[0].text : '[]'
-    const clean = raw.replace(/```json?\n?/g, '').replace(/```\n?/g, '').trim()
-    optimizedOrder = JSON.parse(clean)
-
-    // Safety: ensure every activity ID is present (Claude might drop one)
-    const returnedIds = new Set(optimizedOrder.map(o => o.id))
-    for (const a of activities) {
-      if (!returnedIds.has(a.id)) {
-        optimizedOrder.push({ id: a.id, suggested_time: '18:00' })
-      }
-    }
-  } catch {
-    // Fallback: keep original order, assign hourly slots from 09:00
-    optimizedOrder = activities.map((a, i) => ({
-      id:             a.id,
-      suggested_time: `${String(9 + i).padStart(2, '0')}:00`,
+    const activityList = activities.map(a => ({
+      id:       a.id,
+      name:     a.name,
+      category: a.category,
+      location: a.location_name ?? null,
     }))
+
+    const prompt = `You are a travel expert. Optimise the visiting order of these activities for a single day in ${city}, ${country}.
+
+Rules:
+- Museums and attractions: morning
+- Lunch (restaurants): midday
+- More attractions: afternoon
+- Dinner: evening
+- Bars and nightlife: late evening
+- Group geographically close activities together to minimise travel
+- Avoid backtracking
+
+Activities to order:
+${JSON.stringify(activityList, null, 2)}
+
+Return ONLY a valid JSON array of the activity IDs in optimal order — no markdown, no code fences, no explanation.
+Format: ["uuid1", "uuid2", "uuid3"]
+Include ALL ${activities.length} activity IDs exactly once.`
+
+    try {
+      const message = await anthropic.messages.create({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 512,
+        messages:   [{ role: 'user', content: prompt }],
+      })
+
+      const raw = message.content[0].type === 'text' ? message.content[0].text : '[]'
+      const clean = raw.replace(/```json?\n?/g, '').replace(/```\n?/g, '').trim()
+      const ids: string[] = JSON.parse(clean)
+      optimizedOrder = ids.map(id => ({ id }))
+
+      // Safety: ensure every activity ID is present (Claude might drop one)
+      const returnedIds = new Set(optimizedOrder.map(o => o.id))
+      for (const a of activities) {
+        if (!returnedIds.has(a.id)) {
+          optimizedOrder.push({ id: a.id })
+        }
+      }
+    } catch {
+      // Fallback: keep original order
+      optimizedOrder = activities.map(a => ({ id: a.id }))
+    }
   }
 
   // ── Step 2: Google Maps travel times for consecutive pairs ───────────────────
