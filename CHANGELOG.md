@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-07-17 (RC audit fixes — forgot password + dead state removal)
+
+### Added — `app/(auth)/auth/forgot-password/page.tsx`
+New forgot-password page matching the login page layout. Email input calls `supabase.auth.resetPasswordForEmail()` with a redirect back to `/settings/account`. On success, shows a check-circle confirmation with the submitted email address and a "try again" option. Styled identically to the login page (split panel, violet gradient left side).
+
+### Changed — `app/(auth)/auth/login/page.tsx`
+Added "Forgot password?" link in the password field label row (right-aligned, muted text). Only shown in sign-in mode (hidden during registration). Links to `/auth/forgot-password`.
+
+### Changed — `components/trips/trips-list-content.tsx`
+Removed dead `const [view, setView] = useState<'grid' | 'list'>('grid')` — the view state was declared but never read; the grid layout was already hardcoded.
+
+---
+
 ## 2026-07-17 (Flights tab + home location in Settings)
 
 ### Added — `supabase/migrations/020_user_settings_home_location.sql`
