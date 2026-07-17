@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Edit, Loader2, ImageIcon, Wand2, Link as LinkIcon, Upload, X, ClipboardCheck } from 'lucide-react'
+import { Edit, Loader2, ImageIcon, Wand2, Link as LinkIcon, Upload, X, ClipboardCheck, Calendar, CalendarOff } from 'lucide-react'
 
 interface EditTripDialogProps {
   trip: Trip
@@ -29,6 +29,7 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
 
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [noDates, setNoDates] = useState(!trip.start_date)
   const [fetchingDestImg, setFetchingDestImg] = useState(false)
   const [showUrlInput, setShowUrlInput] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -52,7 +53,9 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
   const set = (k: string, v: string | null) => setForm(f => ({ ...f, [k]: v ?? '' }))
 
   function handleOpenChange(next: boolean) {
-    if (!next) {
+    if (next) {
+      setNoDates(!trip.start_date)
+    } else {
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl)
       setFilePreviewUrl(null)
       setSelectedFile(null)
@@ -192,14 +195,42 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
             <Label>Country</Label>
             <Input value={form.country} onChange={e => set('country', e.target.value)} />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Travel Dates</Label>
-            <DateRangePicker
-              startDate={form.start_date || null}
-              endDate={form.end_date || null}
-              onChange={(start, end) => { set('start_date', start); set('end_date', end) }}
-              numberOfMonths={1}
-            />
+            <div className="flex rounded-lg border border-input overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setNoDates(false)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors ${
+                  !noDates
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <Calendar className="h-3 w-3" />
+                Set dates
+              </button>
+              <button
+                type="button"
+                onClick={() => { setNoDates(true); set('start_date', ''); set('end_date', '') }}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors ${
+                  noDates
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <CalendarOff className="h-3 w-3" />
+                No dates yet
+              </button>
+            </div>
+            {!noDates && (
+              <DateRangePicker
+                startDate={form.start_date || null}
+                endDate={form.end_date || null}
+                onChange={(start, end) => { set('start_date', start); set('end_date', end) }}
+                numberOfMonths={1}
+              />
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

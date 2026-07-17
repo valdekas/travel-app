@@ -65,7 +65,7 @@ function extractCity(trip: Trip): string {
 function dayLabel(day: ItineraryDay, index: number): string {
   const num = day.day_number ?? index + 1
   try {
-    return `Day ${num} — ${format(parseISO(day.date), 'EEE, MMM d')}`
+    return day.date ? `Day ${num} — ${format(parseISO(day.date), 'EEE, MMM d')}` : `Day ${num}`
   } catch {
     return `Day ${num}`
   }

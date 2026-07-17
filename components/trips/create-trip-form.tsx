@@ -18,7 +18,7 @@ import { toast } from 'sonner'
 import { validateHeroImageFile, uploadCustomHeroImage } from '@/lib/utils/trip-hero-image'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import {
-  Globe, Calendar, DollarSign, FileText, ImageIcon,
+  Globe, Calendar, CalendarOff, DollarSign, FileText, ImageIcon,
   Loader2, Wand2, Link as LinkIcon, X, MapPin, Upload,
 } from 'lucide-react'
 
@@ -38,6 +38,8 @@ export function CreateTripForm({ defaultCurrency = 'EUR' }: CreateTripFormProps)
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
+  const [noDates, setNoDates] = useState(false)
+  const [duration, setDuration] = useState('')
   const [showUrlInput, setShowUrlInput] = useState(false)
   const [heroFile, setHeroFile] = useState<File | null>(null)
   const [heroPreviewUrl, setHeroPreviewUrl] = useState<string | null>(null)
@@ -151,7 +153,7 @@ export function CreateTripForm({ defaultCurrency = 'EUR' }: CreateTripFormProps)
         { trip_id: data.id, category: 'packing',   title: 'Travel Adapter',      order_index: 4 },
       ])
 
-      if (form.start_date && form.end_date) {
+      if (!noDates && form.start_date && form.end_date) {
         const start = parseISO(form.start_date)
         const end   = parseISO(form.end_date)
         const totalDays = Math.min(
@@ -168,6 +170,16 @@ export function CreateTripForm({ defaultCurrency = 'EUR' }: CreateTripFormProps)
           const { error: daysError } = await supabase.from('itinerary_days').insert(daysArray)
           if (daysError) console.error('Failed to auto-create itinerary days:', daysError.message)
         }
+      } else if (noDates && parseInt(duration) > 0) {
+        const numDays = Math.min(parseInt(duration), 30)
+        const daysArray = Array.from({ length: numDays }, (_, i) => ({
+          trip_id:      data.id,
+          day_number:   i + 1,
+          date:         null as string | null,
+          is_completed: false,
+        }))
+        const { error: daysError } = await supabase.from('itinerary_days').insert(daysArray)
+        if (daysError) console.error('Failed to auto-create itinerary days:', daysError.message)
       }
 
       // Fetch hero image server-side — fire-and-forget, doesn't block redirect.
@@ -187,9 +199,11 @@ export function CreateTripForm({ defaultCurrency = 'EUR' }: CreateTripFormProps)
       }
 
       // Fire suggestion generation in background — doesn't block trip creation.
-      const duration = (form.start_date && form.end_date)
-        ? Math.round((new Date(form.end_date).getTime() - new Date(form.start_date).getTime()) / 86_400_000) + 1
-        : null
+      const suggestDuration = noDates
+        ? (parseInt(duration) || null)
+        : (form.start_date && form.end_date)
+          ? Math.round((new Date(form.end_date).getTime() - new Date(form.start_date).getTime()) / 86_400_000) + 1
+          : null
       void fetch('/api/suggestions/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -197,7 +211,7 @@ export function CreateTripForm({ defaultCurrency = 'EUR' }: CreateTripFormProps)
           tripId: data.id,
           city:    form.city || null,
           country: form.country,
-          duration,
+          duration: suggestDuration,
         }),
       }).catch(() => {})
 
@@ -380,19 +394,72 @@ export function CreateTripForm({ defaultCurrency = 'EUR' }: CreateTripFormProps)
       {/* Dates */}
       <Card>
         <CardContent className="pt-6 space-y-4">
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-2">
             <Calendar className="h-4 w-4 text-primary" />
             <h2 className="font-semibold">Dates</h2>
           </div>
-          <div className="space-y-1.5">
-            <Label>Travel Dates</Label>
-            <DateRangePicker
-              startDate={form.start_date || null}
-              endDate={form.end_date || null}
-              onChange={(start, end) => { set('start_date', start); set('end_date', end) }}
-              placeholder="Select departure and return dates"
-            />
+
+          {/* Toggle: I know my dates / No dates yet */}
+          <div className="flex rounded-lg border border-input overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setNoDates(false)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium transition-colors ${
+                !noDates
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              I know my dates
+            </button>
+            <button
+              type="button"
+              onClick={() => { setNoDates(true); set('start_date', ''); set('end_date', '') }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium transition-colors ${
+                noDates
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              <CalendarOff className="h-3.5 w-3.5" />
+              No dates yet
+            </button>
           </div>
+
+          {!noDates ? (
+            <div className="space-y-1.5">
+              <Label>Travel Dates</Label>
+              <DateRangePicker
+                startDate={form.start_date || null}
+                endDate={form.end_date || null}
+                onChange={(start, end) => { set('start_date', start); set('end_date', end) }}
+                placeholder="Select departure and return dates"
+              />
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label htmlFor="duration">
+                Trip length <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="duration"
+                  type="number"
+                  min="1"
+                  max="365"
+                  placeholder="7"
+                  value={duration}
+                  onChange={e => setDuration(e.target.value)}
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground">days</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Sets up itinerary days now — add exact dates later in Edit Trip.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

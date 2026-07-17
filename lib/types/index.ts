@@ -75,7 +75,7 @@ export interface ChecklistItem {
 export interface ItineraryDay {
   id: string
   trip_id: string
-  date: string
+  date: string | null
   day_number?: number
   title?: string
   notes?: string

@@ -474,7 +474,7 @@ function DayCard({
                 isCompleted ? 'text-muted-foreground/60' : 'text-muted-foreground',
               )}>
                 <Calendar className="h-3 w-3 flex-shrink-0" />
-                {formatDate(day.date, 'EEEE, MMMM d, yyyy')}
+                {day.date ? formatDate(day.date, 'EEEE, MMMM d, yyyy') : `Day ${dayIndex + 1}`}
               </p>
             </div>
           </div>
