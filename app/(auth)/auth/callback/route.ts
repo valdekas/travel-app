@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+const MOBILE_SCHEME = 'travelappmobile://'
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
 
@@ -19,15 +21,25 @@ export async function GET(request: Request) {
     return NextResponse.redirect(loginUrl.toString())
   }
 
-  const code = searchParams.get('code')
-  // Only allow relative paths for the 'next' param to prevent open-redirect.
-  const rawNext  = searchParams.get('next') ?? '/dashboard'
-  const safeNext = rawNext.startsWith('/') ? rawNext : '/dashboard'
+  const code    = searchParams.get('code')
+  const rawNext = searchParams.get('next') ?? '/dashboard'
+
+  // Allow deep-link redirects only for our own mobile scheme (prevents open-redirect).
+  // For everything else, enforce relative paths.
+  const isMobileCallback = rawNext.startsWith(MOBILE_SCHEME)
+  const safeNext = isMobileCallback || rawNext.startsWith('/')
+    ? rawNext
+    : '/dashboard'
 
   if (code) {
     const supabase = await createClient()
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
     if (!exchangeError) {
+      // Mobile deep-link: redirect to custom scheme so the OS hands control
+      // back to the native app with the session already established.
+      if (isMobileCallback) {
+        return NextResponse.redirect(safeNext)
+      }
       return NextResponse.redirect(`${base}${safeNext}`)
     }
     // Exchange failed — send user back to login with a readable error.
