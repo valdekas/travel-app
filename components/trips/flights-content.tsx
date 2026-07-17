@@ -32,14 +32,19 @@ function buildUrls(
   const origin      = homeAirport || homeCity
   const destination = tripCity
 
+  // Skyscanner expects lowercase IATA codes in the path
+  const skyOrigin = (homeAirport || homeCity).toLowerCase()
+  const skyDest   = tripCity.toLowerCase()
+
   return {
-    google: `https://www.google.com/travel/flights?q=flights+from+${enc(homeCity)}+to+${enc(tripCity)}+on+${startDate}`,
-    skyscanner: `https://www.skyscanner.com/transport/flights/${enc(origin)}/${enc(destination)}/${skyscannerDate(startDate)}/`,
-    ryanair: `https://www.ryanair.com/gb/en/trip/flights/select?adults=1&teens=0&children=0&infants=0&dateOut=${startDate}&dateIn=${endDate}&isConnectedFlight=false&isReturn=true&originIata=${enc(origin)}&destinationIata=${enc(destination)}`,
-    kayak: `https://www.kayak.com/flights/${enc(origin)}-${enc(destination)}/${startDate}/${endDate}`,
-    wizzair: `https://wizzair.com/en-gb/flights/search?departureStation=${enc(origin)}&arrivalStation=${enc(destination)}&departureDate=${startDate}`,
-    aerlingus: `https://www.aerlingus.com/flight-information/search-results/?searchPageId=gms_aer_lingus&origin=${enc(origin)}&destination=${enc(destination)}&outbound=${startDate}&return=${endDate}&ADT=1&CHD=0&INF=0&isOneWay=false`,
-    expedia: `https://www.expedia.com/Flights-Search?trip=roundtrip&leg1=from:${enc(homeCity)},to:${enc(tripCity)},departure:${startDate}&leg2=from:${enc(tripCity)},to:${enc(homeCity)},departure:${endDate}`,
+    google:     `https://www.google.com/travel/flights?q=flights+from+${enc(homeCity)}+to+${enc(tripCity)}+on+${startDate}`,
+    skyscanner: `https://www.skyscanner.net/transport/flights/${enc(skyOrigin)}/${enc(skyDest)}/${skyscannerDate(startDate)}/`,
+    ryanair:    homeAirport
+      ? `https://www.ryanair.com/gb/en/trip/flights/select?adults=1&teens=0&children=0&infants=0&dateOut=${startDate}&dateIn=${endDate}&isConnectedFlight=false&isReturn=true&originIata=${homeAirport.toUpperCase()}&destinationIata=${enc(tripCity.toUpperCase())}`
+      : 'https://www.ryanair.com',
+    kayak:      `https://www.kayak.com/flights/${enc(origin)}-${enc(destination)}/${startDate}/${endDate}`,
+    wizzair:    `https://wizzair.com/en-gb/flights/search?departureStation=${enc(origin)}&arrivalStation=${enc(destination)}&departureDate=${startDate}`,
+    expedia:    `https://www.expedia.com/Flights-Search?trip=roundtrip&leg1=from:${enc(homeCity)},to:${enc(tripCity)},departure:${startDate}&leg2=from:${enc(tripCity)},to:${enc(homeCity)},departure:${endDate}`,
   }
 }
 
@@ -65,8 +70,8 @@ const PLATFORMS = [
   {
     id:          'ryanair',
     name:        'Ryanair',
-    tagline:     'Budget European flights',
-    description: 'Ultra-low-cost carrier with routes across Europe.',
+    tagline:     "Europe's largest low-cost airline",
+    description: 'Ultra-low-cost carrier with routes across Europe. Requires airport IATA code for pre-filled search.',
     color:       '#073590',
     emoji:       '🟠',
     badge:       'Budget Europe',
@@ -88,15 +93,6 @@ const PLATFORMS = [
     color:       '#C6007E',
     emoji:       '🟡',
     badge:       'Low-cost',
-  },
-  {
-    id:          'aerlingus',
-    name:        'Aer Lingus',
-    tagline:     "Ireland's national airline",
-    description: 'Transatlantic and European routes from Ireland with competitive fares.',
-    color:       '#006837',
-    emoji:       '🟢',
-    badge:       'Ireland hub',
   },
   {
     id:          'expedia',
