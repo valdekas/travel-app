@@ -38,6 +38,7 @@ function buildUrls(
     ryanair: `https://www.ryanair.com/gb/en/trip/flights/select?adults=1&teens=0&children=0&infants=0&dateOut=${startDate}&dateIn=${endDate}&isConnectedFlight=false&isReturn=true&originIata=${enc(origin)}&destinationIata=${enc(destination)}`,
     kayak: `https://www.kayak.com/flights/${enc(origin)}-${enc(destination)}/${startDate}/${endDate}`,
     wizzair: `https://wizzair.com/en-gb/flights/search?departureStation=${enc(origin)}&arrivalStation=${enc(destination)}&departureDate=${startDate}`,
+    aerlingus: `https://www.aerlingus.com/flights/searchflights/?bookingOrigin=${enc(origin)}&bookingDestination=${enc(destination)}&outboundDate=${startDate}&returnDate=${endDate}&adultPaxCount=1`,
     expedia: `https://www.expedia.com/Flights-Search?trip=roundtrip&leg1=from:${enc(homeCity)},to:${enc(tripCity)},departure:${startDate}&leg2=from:${enc(tripCity)},to:${enc(homeCity)},departure:${endDate}`,
   }
 }
@@ -87,6 +88,15 @@ const PLATFORMS = [
     color:       '#C6007E',
     emoji:       '🟡',
     badge:       'Low-cost',
+  },
+  {
+    id:          'aerlingus',
+    name:        'Aer Lingus',
+    tagline:     "Ireland's national airline",
+    description: 'Transatlantic and European routes from Ireland with competitive fares.',
+    color:       '#006837',
+    emoji:       '🟢',
+    badge:       'Ireland hub',
   },
   {
     id:          'expedia',
