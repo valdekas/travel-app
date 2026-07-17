@@ -1,10 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
 import { Trip } from '@/lib/types'
 import { EditTripDialog } from './edit-trip-dialog'
-import { ExternalLink, Plane, Info, MapPin, Calendar, ArrowRight, Settings, Copy, Check } from 'lucide-react'
+import { ExternalLink, Plane, Info, MapPin, Calendar, ArrowRight, Settings } from 'lucide-react'
 import { differenceInDays, parseISO, format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -18,7 +17,7 @@ interface FlightsContentProps {
 
 const enc = encodeURIComponent
 
-function buildDeepLinks(
+function buildLinks(
   homeCity: string,
   homeAirport: string,
   tripCity: string,
@@ -27,13 +26,12 @@ function buildDeepLinks(
 ) {
   const origin = homeAirport || homeCity
   return {
-    google:  `https://www.google.com/travel/flights?q=flights+from+${enc(homeCity)}+to+${enc(tripCity)}+on+${startDate}`,
-    kayak:   `https://www.kayak.com/flights/${enc(origin)}-${enc(tripCity)}/${startDate}/${endDate}`,
-    momondo: `https://www.momondo.com/flight-search/${enc(origin)}-${enc(tripCity)}/${startDate}/${endDate}`,
+    google: `https://www.google.com/travel/flights?q=flights+from+${enc(homeCity)}+to+${enc(tripCity)}+on+${startDate}`,
+    kayak:  `https://www.kayak.com/flights/${enc(origin)}-${enc(tripCity)}/${startDate}/${endDate}`,
   }
 }
 
-const DEEP_LINK_PLATFORMS = [
+const PLATFORMS = [
   {
     id:          'google',
     name:        'Google Flights',
@@ -52,48 +50,6 @@ const DEEP_LINK_PLATFORMS = [
     emoji:       '🔎',
     badge:       'Meta-search',
   },
-  {
-    id:          'momondo',
-    name:        'Momondo',
-    tagline:     'Find the best flight deals',
-    description: 'Searches hundreds of sites to find the cheapest available fares.',
-    color:       '#6B48FF',
-    emoji:       '🔮',
-    badge:       'Cheapest fares',
-  },
-]
-
-const MANUAL_PLATFORMS = [
-  {
-    id:          'skyscanner',
-    name:        'Skyscanner',
-    tagline:     'Find the cheapest flights',
-    description: 'Search hundreds of airlines and booking sites.',
-    color:       '#0770E3',
-    emoji:       '✈️',
-    badge:       'Popular',
-    homepageUrl: 'https://www.skyscanner.net',
-  },
-  {
-    id:          'ryanair',
-    name:        'Ryanair',
-    tagline:     "Europe's largest low-cost airline",
-    description: 'Ultra-low-cost routes across Europe.',
-    color:       '#073590',
-    emoji:       '🟠',
-    badge:       'Budget Europe',
-    homepageUrl: 'https://www.ryanair.com',
-  },
-  {
-    id:          'expedia',
-    name:        'Expedia',
-    tagline:     'Bundle flights + hotels',
-    description: 'Book flights and hotels together to unlock package discounts.',
-    color:       '#E8A018',
-    emoji:       '🔵',
-    badge:       'Bundle deals',
-    homepageUrl: 'https://www.expedia.com/Flights',
-  },
 ]
 
 const TIPS = [
@@ -104,8 +60,6 @@ const TIPS = [
 ]
 
 export function FlightsContent({ trip, homeCity, homeCountry, homeAirport }: FlightsContentProps) {
-  const [copiedId, setCopiedId] = useState<string | null>(null)
-
   const hasHome  = Boolean(homeCity)
   const hasCity  = Boolean(trip.city)
   const hasDates = Boolean(trip.start_date && trip.end_date)
@@ -114,35 +68,15 @@ export function FlightsContent({ trip, homeCity, homeCountry, homeAirport }: Fli
   const startDate = trip.start_date ?? ''
   const endDate   = trip.end_date   ?? ''
 
-  const nights =
-    hasDates ? differenceInDays(parseISO(endDate), parseISO(startDate)) : null
+  const nights = hasDates ? differenceInDays(parseISO(endDate), parseISO(startDate)) : null
 
-  const deepLinks =
+  const links =
     hasHome && hasCity && hasDates
-      ? buildDeepLinks(homeCity!, homeAirport ?? '', tripCity, startDate, endDate)
+      ? buildLinks(homeCity!, homeAirport ?? '', tripCity, startDate, endDate)
       : null
 
   const formattedStart = startDate ? format(parseISO(startDate), 'd MMM yyyy') : null
   const formattedEnd   = endDate   ? format(parseISO(endDate),   'd MMM yyyy') : null
-
-  // Compact search info shown on manual cards and in copy text
-  const searchOrigin = homeAirport || homeCity || ''
-  const searchInfo =
-    hasHome && hasCity
-      ? `${searchOrigin} → ${tripCity}${
-          hasDates
-            ? ` · ${format(parseISO(startDate), 'd MMM')} – ${format(parseISO(endDate), 'd MMM')}`
-            : ''
-        }`
-      : null
-
-  function copySearchInfo(id: string) {
-    if (!searchInfo) return
-    navigator.clipboard.writeText(searchInfo).then(() => {
-      setCopiedId(id)
-      setTimeout(() => setCopiedId(null), 2000)
-    })
-  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
@@ -159,7 +93,7 @@ export function FlightsContent({ trip, homeCity, homeCountry, homeAirport }: Fli
           </p>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Quick links to top flight search platforms — pre-filled with your route and dates.
+            Pre-filled flight search links — set your home city to get started.
           </p>
         )}
       </div>
@@ -228,139 +162,64 @@ export function FlightsContent({ trip, homeCity, homeCountry, homeAirport }: Fli
         </div>
       )}
 
-      {/* Pre-filled search cards */}
-      <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-0.5">
-          Pre-filled searches
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {DEEP_LINK_PLATFORMS.map((platform) => {
-            const url     = deepLinks?.[platform.id as keyof typeof deepLinks]
-            const enabled = Boolean(url)
+      {/* Platform cards — 2-col, max-w-2xl so cards don't stretch too wide */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+        {PLATFORMS.map((platform) => {
+          const url     = links?.[platform.id as keyof typeof links]
+          const enabled = Boolean(url)
 
-            const inner = (
-              <div
-                className={cn(
-                  'group relative rounded-xl border bg-card p-4 transition-all duration-200 border-l-[3px]',
-                  enabled ? 'hover:shadow-md hover:-translate-y-0.5' : 'opacity-55'
-                )}
-                style={{ borderLeftColor: platform.color }}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                      <span className="text-lg leading-none">{platform.emoji}</span>
-                      <span className="font-semibold text-sm">{platform.name}</span>
-                      <span
-                        className="hidden sm:inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0"
-                        style={{ backgroundColor: `${platform.color}1a`, color: platform.color }}
-                      >
-                        {platform.badge}
-                      </span>
-                    </div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">{platform.tagline}</p>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{platform.description}</p>
-                  </div>
-                  <ExternalLink
-                    className={cn(
-                      'h-4 w-4 shrink-0 mt-0.5 transition-opacity',
-                      enabled ? 'opacity-30 group-hover:opacity-80' : 'opacity-15'
-                    )}
-                  />
-                </div>
-                {!enabled && (
-                  <p className="mt-2 text-[11px] text-muted-foreground/60">
-                    {!hasHome ? 'Set your home city in Settings to enable' :
-                     !hasCity ? 'Set a trip destination to enable' :
-                                'Set trip dates to enable'}
-                  </p>
-                )}
-              </div>
-            )
-
-            if (!enabled) return <div key={platform.id}>{inner}</div>
-
-            return (
-              <a key={platform.id} href={url} target="_blank" rel="noopener noreferrer" className="block no-underline">
-                {inner}
-              </a>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Manual search cards */}
-      <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-0.5">
-          Open &amp; search manually
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {MANUAL_PLATFORMS.map((platform) => (
+          const inner = (
             <div
-              key={platform.id}
-              className="rounded-xl border bg-card p-4 border-l-[3px] space-y-3"
+              className={cn(
+                'group relative rounded-xl border bg-card p-5 transition-all duration-200 border-l-[3px]',
+                enabled ? 'hover:shadow-md hover:-translate-y-0.5' : 'opacity-55'
+              )}
               style={{ borderLeftColor: platform.color }}
             >
-              {/* Name row */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-lg leading-none">{platform.emoji}</span>
-                <span className="font-semibold text-sm">{platform.name}</span>
-                <span
-                  className="hidden sm:inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                  style={{ backgroundColor: `${platform.color}1a`, color: platform.color }}
-                >
-                  {platform.badge}
-                </span>
-              </div>
-
-              {/* Copyable search info */}
-              {searchInfo ? (
-                <button
-                  onClick={() => copySearchInfo(platform.id)}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="text-xl leading-none">{platform.emoji}</span>
+                    <span className="font-semibold text-sm">{platform.name}</span>
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0"
+                      style={{ backgroundColor: `${platform.color}1a`, color: platform.color }}
+                    >
+                      {platform.badge}
+                    </span>
+                  </div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">{platform.tagline}</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{platform.description}</p>
+                </div>
+                <ExternalLink
                   className={cn(
-                    'w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition-colors',
-                    'bg-muted/60 hover:bg-muted border border-border/50'
+                    'h-4 w-4 shrink-0 mt-0.5 transition-opacity',
+                    enabled ? 'opacity-30 group-hover:opacity-80' : 'opacity-15'
                   )}
-                  title="Click to copy search details"
-                >
-                  <span className="text-sm font-mono font-medium text-foreground truncate">
-                    {searchInfo}
-                  </span>
-                  {copiedId === platform.id
-                    ? <Check className="h-3.5 w-3.5 shrink-0 text-green-600" />
-                    : <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  }
-                </button>
-              ) : (
-                <p className="text-xs text-muted-foreground">{platform.description}</p>
-              )}
-
-              {/* Open button */}
-              <div className="flex items-center gap-2">
-                <a
-                  href={platform.homepageUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="no-underline"
-                >
-                  <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
-                    Open {platform.name}
-                    <ExternalLink className="h-3 w-3" />
-                  </Button>
-                </a>
-                {searchInfo && (
-                  <span className="text-[11px] text-muted-foreground">
-                    Search details shown above
-                  </span>
-                )}
+                />
               </div>
+              {!enabled && (
+                <p className="mt-2 text-[11px] text-muted-foreground/60">
+                  {!hasHome ? 'Set your home city in Settings to enable' :
+                   !hasCity ? 'Set a trip destination to enable' :
+                              'Set trip dates to enable'}
+                </p>
+              )}
             </div>
-          ))}
-        </div>
+          )
+
+          if (!enabled) return <div key={platform.id}>{inner}</div>
+
+          return (
+            <a key={platform.id} href={url} target="_blank" rel="noopener noreferrer" className="block no-underline">
+              {inner}
+            </a>
+          )
+        })}
       </div>
 
       {/* Tips */}
-      <div className="rounded-xl border bg-muted/30 p-5">
+      <div className="rounded-xl border bg-muted/30 p-5 max-w-2xl">
         <div className="flex items-center gap-2 mb-3">
           <Info className="h-4 w-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Flight booking tips</h2>
