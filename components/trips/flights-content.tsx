@@ -34,11 +34,11 @@ function buildUrls(
 
   return {
     google: `https://www.google.com/travel/flights?q=flights+from+${enc(homeCity)}+to+${enc(tripCity)}+on+${startDate}`,
-    skyscanner: `https://www.skyscanner.net/transport/flights/${enc(origin)}/${enc(destination)}/${skyscannerDate(startDate)}/`,
+    skyscanner: `https://www.skyscanner.com/transport/flights/${enc(origin)}/${enc(destination)}/${skyscannerDate(startDate)}/`,
     ryanair: `https://www.ryanair.com/gb/en/trip/flights/select?adults=1&teens=0&children=0&infants=0&dateOut=${startDate}&dateIn=${endDate}&isConnectedFlight=false&isReturn=true&originIata=${enc(origin)}&destinationIata=${enc(destination)}`,
     kayak: `https://www.kayak.com/flights/${enc(origin)}-${enc(destination)}/${startDate}/${endDate}`,
     wizzair: `https://wizzair.com/en-gb/flights/search?departureStation=${enc(origin)}&arrivalStation=${enc(destination)}&departureDate=${startDate}`,
-    aerlingus: `https://www.aerlingus.com/flights/searchflights/?bookingOrigin=${enc(origin)}&bookingDestination=${enc(destination)}&outboundDate=${startDate}&returnDate=${endDate}&adultPaxCount=1`,
+    aerlingus: `https://www.aerlingus.com/flight-information/search-results/?searchPageId=gms_aer_lingus&origin=${enc(origin)}&destination=${enc(destination)}&outbound=${startDate}&return=${endDate}&ADT=1&CHD=0&INF=0&isOneWay=false`,
     expedia: `https://www.expedia.com/Flights-Search?trip=roundtrip&leg1=from:${enc(homeCity)},to:${enc(tripCity)},departure:${startDate}&leg2=from:${enc(tripCity)},to:${enc(homeCity)},departure:${endDate}`,
   }
 }
