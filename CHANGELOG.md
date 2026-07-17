@@ -1,5 +1,46 @@
 # Changelog
 
+## 2026-07-17 (Flights tab + home location in Settings)
+
+### Added — `supabase/migrations/020_user_settings_home_location.sql`
+Adds `home_city TEXT`, `home_country TEXT`, `home_airport TEXT` (IATA code) columns to `user_settings`. Apply in Supabase SQL editor.
+
+### Changed — `lib/types/index.ts`
+Added `home_city`, `home_country`, `home_airport` (`string | null`) to `UserSettings` interface and `DEFAULT_USER_SETTINGS`.
+
+### Changed — `app/(dashboard)/settings/account/page.tsx`
+Fetches `home_city, home_country, home_airport` from `user_settings` and passes as `homeSettings` prop to `AccountSettings`.
+
+### Changed — `components/settings/account-settings.tsx`
+Added `userId` and `homeSettings` props. New **Home Location** section with:
+- `PlacesAutocomplete` for city (auto-populates `home_country` on select).
+- Plain text input for IATA airport code (max 3 chars, uppercased, mono font).
+- Dedicated "Save Home Location" button (upserts `user_settings` on conflict `user_id`).
+
+### Changed — `components/trips/trip-detail-shell.tsx`
+Added `Flights` tab (`href: 'flights'`, icon: `Plane`) after Hotels.
+
+### Added — `app/(dashboard)/trips/[id]/flights/page.tsx`
+Server component. Fetches `trip` (select `*`) and `user_settings` (`home_city, home_country, home_airport`) in parallel; passes both to `FlightsContent`.
+
+### Added — `components/trips/flights-content.tsx`
+Client component with 6 pre-filled platform cards: Google Flights, Skyscanner, Ryanair, Kayak, Wizz Air, Expedia. All links open in a new tab. URL encoding via `encodeURIComponent`. Skyscanner uses YYMMDD date format; other platforms use YYYY-MM-DD. Falls back to `home_city` if `home_airport` is not set; falls back to `trip.city` for destination IATA. States: no-home-city banner (→ Settings link), no-trip-dates banner (→ EditTripDialog), route summary card when both are present. Flight booking tips section at the bottom.
+
+---
+
+## 2026-07-17 (Hotels tab with pre-filled booking platform links)
+
+### Changed — `components/trips/trip-detail-shell.tsx`
+Added `Hotels` tab (`href: 'hotels'`, icon: `BedDouble`).
+
+### Added — `app/(dashboard)/trips/[id]/hotels/page.tsx`
+Server component fetching trip with `select('*')`.
+
+### Added — `components/trips/hotels-content.tsx`
+Six platform cards (Booking.com, Airbnb, Google Hotels, Expedia, Hotels.com, Hostelworld) with coloured left-border accents, pre-filled search URLs, no-city / no-dates states with `EditTripDialog`, context pills, and booking tips.
+
+---
+
 ## 2026-07-17 (AI-powered packing list suggestions in Checklist tab)
 
 ### Added — `app/api/checklist/suggestions/route.ts`

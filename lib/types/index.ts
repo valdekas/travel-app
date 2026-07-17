@@ -301,6 +301,9 @@ export interface UserSettings {
   currency: string
   private_account: boolean
   hide_profile: boolean
+  home_city: string | null
+  home_country: string | null
+  home_airport: string | null
   created_at: string
   updated_at: string
 }
@@ -321,6 +324,9 @@ export const DEFAULT_USER_SETTINGS: Omit<UserSettings, 'id' | 'user_id' | 'creat
   currency: 'USD',
   private_account: false,
   hide_profile: false,
+  home_city: null,
+  home_country: null,
+  home_airport: null,
 }
 
 export interface TripSuggestion {
