@@ -109,6 +109,10 @@ DO NOT START NEW FEATURES UNTIL ALL ITEMS IN "Current Sprint" ARE COMPLETED.
 * [ ] Activity photos
 * [ ] Timeline polish
 
+## Checklist
+
+* [x] AI packing suggestions — ✨ Suggestions button opens 2-step dialog: priority filter (Essential/Recommended/Optional) → Claude Haiku generates 30-40 trip-specific items grouped by Documents/Packing/Custom; checkbox selection; deduplicates against existing items; bulk-inserts selected items
+
 ## Budget
 
 * [x] Auto-sync itinerary activity costs — adding/editing an activity with cost > 0 creates/updates a linked budget_items row (actual_amount); cost = 0 deletes it; ON DELETE CASCADE handles activity deletion; "📅 Itinerary" badge on auto-created rows; "💰 · Budget" indicator on activity card

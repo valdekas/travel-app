@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-07-17 (AI-powered packing list suggestions in Checklist tab)
+
+### Added — `app/api/checklist/suggestions/route.ts`
+POST endpoint accepting `{ city, country, duration, startDate, tripTypes, existingItems }`. Calls Claude Haiku with a structured prompt requesting 30–40 items categorised as `documents | packing | custom` with priority `essential | recommended | optional` and a trip-specific reason per item. Validates and sanitises the JSON array before returning `{ suggestions }`.
+
+### Changed — `app/(dashboard)/trips/[id]/checklist/page.tsx`
+Fetches `city, country, start_date, end_date` from `trips` and distinct `type` values from `itinerary_items`. Calculates trip duration with `date-fns`. Passes `tripContext` to `ChecklistContent`.
+
+### Changed — `components/checklist/checklist-content.tsx`
+- Added `TripContext` and `SuggestionItem` interfaces; new `tripContext?` prop.
+- Added `✨ Suggestions` outline button in the section header (violet, icon-only on mobile).
+- **Suggestions dialog** (2-step):
+  - Step 1: priority filter (Essential / Recommended / Optional toggles) + "Generate Suggestions" button.
+  - Step 2: Loading skeleton → results grouped by category (Documents / Packing / Custom) with per-item checkbox, priority badge, and reason. "Select only essentials" shortcut. "Add X Selected" applies items to the checklist.
+- `generateSuggestions`: calls API, filters by selected priorities, pre-selects essential + recommended items.
+- `addSelectedSuggestions`: deduplicates against existing items, bulk-inserts to `checklist_items`, updates local state, shows success toast.
+- Existing checklist functionality (add/edit/delete/reorder/complete) unchanged.
+
+---
+
 ## 2026-06-28 (Inline budget editing in Budget tab)
 
 ### Changed — `components/budget/budget-content.tsx`
