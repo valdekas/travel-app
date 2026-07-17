@@ -1,9 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { Trip } from '@/lib/types'
 import { EditTripDialog } from './edit-trip-dialog'
-import { ExternalLink, Plane, Info, MapPin, Calendar, ArrowRight, Settings } from 'lucide-react'
+import { ExternalLink, Plane, Info, MapPin, Calendar, ArrowRight, Settings, Copy, Check } from 'lucide-react'
 import { differenceInDays, parseISO, format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -17,38 +18,22 @@ interface FlightsContentProps {
 
 const enc = encodeURIComponent
 
-function skyscannerDate(iso: string) {
-  // YYMMDD format e.g. 250715
-  return format(parseISO(iso), 'yyMMdd')
-}
-
-function buildUrls(
+function buildDeepLinks(
   homeCity: string,
   homeAirport: string,
   tripCity: string,
   startDate: string,
   endDate: string,
 ) {
-  const origin      = homeAirport || homeCity
-  const destination = tripCity
-
-  // Skyscanner expects lowercase IATA codes in the path
-  const skyOrigin = (homeAirport || homeCity).toLowerCase()
-  const skyDest   = tripCity.toLowerCase()
-
+  const origin = homeAirport || homeCity
   return {
-    google:     `https://www.google.com/travel/flights?q=flights+from+${enc(homeCity)}+to+${enc(tripCity)}+on+${startDate}`,
-    skyscanner: `https://www.skyscanner.net/transport/flights/${enc(skyOrigin)}/${enc(skyDest)}/${skyscannerDate(startDate)}/`,
-    ryanair:    homeAirport
-      ? `https://www.ryanair.com/gb/en/trip/flights/select?adults=1&teens=0&children=0&infants=0&dateOut=${startDate}&dateIn=${endDate}&isConnectedFlight=false&isReturn=true&originIata=${homeAirport.toUpperCase()}&destinationIata=${enc(tripCity.toUpperCase())}`
-      : 'https://www.ryanair.com',
-    kayak:      `https://www.kayak.com/flights/${enc(origin)}-${enc(destination)}/${startDate}/${endDate}`,
-    wizzair:    `https://wizzair.com/en-gb/flights/search?departureStation=${enc(origin)}&arrivalStation=${enc(destination)}&departureDate=${startDate}`,
-    expedia:    `https://www.expedia.com/Flights-Search?trip=roundtrip&leg1=from:${enc(homeCity)},to:${enc(tripCity)},departure:${startDate}&leg2=from:${enc(tripCity)},to:${enc(homeCity)},departure:${endDate}`,
+    google:  `https://www.google.com/travel/flights?q=flights+from+${enc(homeCity)}+to+${enc(tripCity)}+on+${startDate}`,
+    kayak:   `https://www.kayak.com/flights/${enc(origin)}-${enc(tripCity)}/${startDate}/${endDate}`,
+    momondo: `https://www.momondo.com/flight-search/${enc(origin)}-${enc(tripCity)}/${startDate}/${endDate}`,
   }
 }
 
-const PLATFORMS = [
+const DEEP_LINK_PLATFORMS = [
   {
     id:          'google',
     name:        'Google Flights',
@@ -59,49 +44,55 @@ const PLATFORMS = [
     badge:       'Price comparison',
   },
   {
+    id:          'kayak',
+    name:        'Kayak',
+    tagline:     'Compare hundreds of travel sites',
+    description: 'Meta-search across airlines, OTAs, and travel agencies with one click.',
+    color:       '#FF690F',
+    emoji:       '🔎',
+    badge:       'Meta-search',
+  },
+  {
+    id:          'momondo',
+    name:        'Momondo',
+    tagline:     'Find the best flight deals',
+    description: 'Searches hundreds of sites to find the cheapest available fares.',
+    color:       '#6B48FF',
+    emoji:       '🔮',
+    badge:       'Cheapest fares',
+  },
+]
+
+const MANUAL_PLATFORMS = [
+  {
     id:          'skyscanner',
     name:        'Skyscanner',
     tagline:     'Find the cheapest flights',
-    description: 'Search hundreds of airlines, travel agents, and booking sites.',
+    description: 'Search hundreds of airlines and booking sites.',
     color:       '#0770E3',
     emoji:       '✈️',
-    badge:       'Cheapest fares',
+    badge:       'Popular',
+    homepageUrl: 'https://www.skyscanner.net',
   },
   {
     id:          'ryanair',
     name:        'Ryanair',
     tagline:     "Europe's largest low-cost airline",
-    description: 'Ultra-low-cost carrier with routes across Europe. Requires airport IATA code for pre-filled search.',
+    description: 'Ultra-low-cost routes across Europe.',
     color:       '#073590',
     emoji:       '🟠',
     badge:       'Budget Europe',
-  },
-  {
-    id:          'kayak',
-    name:        'Kayak',
-    tagline:     'Compare hundreds of travel sites',
-    description: 'Meta-search across airlines, OTAs, and travel agencies.',
-    color:       '#FF690F',
-    emoji:       '💙',
-    badge:       'Meta-search',
-  },
-  {
-    id:          'wizzair',
-    name:        'Wizz Air',
-    tagline:     'Ultra-low cost flights',
-    description: 'Low-cost carrier with extensive Central & Eastern European routes.',
-    color:       '#C6007E',
-    emoji:       '🟡',
-    badge:       'Low-cost',
+    homepageUrl: 'https://www.ryanair.com',
   },
   {
     id:          'expedia',
     name:        'Expedia',
     tagline:     'Bundle flights + hotels',
-    description: 'Book flights and hotels together to unlock exclusive package discounts.',
+    description: 'Book flights and hotels together to unlock package discounts.',
     color:       '#E8A018',
     emoji:       '🔵',
     badge:       'Bundle deals',
+    homepageUrl: 'https://www.expedia.com/Flights',
   },
 ]
 
@@ -113,26 +104,45 @@ const TIPS = [
 ]
 
 export function FlightsContent({ trip, homeCity, homeCountry, homeAirport }: FlightsContentProps) {
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
   const hasHome  = Boolean(homeCity)
   const hasCity  = Boolean(trip.city)
   const hasDates = Boolean(trip.start_date && trip.end_date)
 
-  const tripCity   = trip.city ?? trip.country ?? ''
-  const startDate  = trip.start_date ?? ''
-  const endDate    = trip.end_date   ?? ''
+  const tripCity  = trip.city ?? trip.country ?? ''
+  const startDate = trip.start_date ?? ''
+  const endDate   = trip.end_date   ?? ''
 
   const nights =
-    hasDates
-      ? differenceInDays(parseISO(endDate), parseISO(startDate))
-      : null
+    hasDates ? differenceInDays(parseISO(endDate), parseISO(startDate)) : null
 
-  const urls =
+  const deepLinks =
     hasHome && hasCity && hasDates
-      ? buildUrls(homeCity!, homeAirport ?? '', tripCity, startDate, endDate)
+      ? buildDeepLinks(homeCity!, homeAirport ?? '', tripCity, startDate, endDate)
       : null
 
   const formattedStart = startDate ? format(parseISO(startDate), 'd MMM yyyy') : null
   const formattedEnd   = endDate   ? format(parseISO(endDate),   'd MMM yyyy') : null
+
+  // Compact search info shown on manual cards and in copy text
+  const searchOrigin = homeAirport || homeCity || ''
+  const searchInfo =
+    hasHome && hasCity
+      ? `${searchOrigin} → ${tripCity}${
+          hasDates
+            ? ` · ${format(parseISO(startDate), 'd MMM')} – ${format(parseISO(endDate), 'd MMM')}`
+            : ''
+        }`
+      : null
+
+  function copySearchInfo(id: string) {
+    if (!searchInfo) return
+    navigator.clipboard.writeText(searchInfo).then(() => {
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    })
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
@@ -218,70 +228,135 @@ export function FlightsContent({ trip, homeCity, homeCountry, homeAirport }: Fli
         </div>
       )}
 
-      {/* Platform cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {PLATFORMS.map((platform) => {
-          const url     = urls?.[platform.id as keyof typeof urls]
-          const enabled = Boolean(url)
+      {/* Pre-filled search cards */}
+      <div className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-0.5">
+          Pre-filled searches
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {DEEP_LINK_PLATFORMS.map((platform) => {
+            const url     = deepLinks?.[platform.id as keyof typeof deepLinks]
+            const enabled = Boolean(url)
 
-          const inner = (
+            const inner = (
+              <div
+                className={cn(
+                  'group relative rounded-xl border bg-card p-4 transition-all duration-200 border-l-[3px]',
+                  enabled ? 'hover:shadow-md hover:-translate-y-0.5' : 'opacity-55'
+                )}
+                style={{ borderLeftColor: platform.color }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <span className="text-lg leading-none">{platform.emoji}</span>
+                      <span className="font-semibold text-sm">{platform.name}</span>
+                      <span
+                        className="hidden sm:inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0"
+                        style={{ backgroundColor: `${platform.color}1a`, color: platform.color }}
+                      >
+                        {platform.badge}
+                      </span>
+                    </div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{platform.tagline}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{platform.description}</p>
+                  </div>
+                  <ExternalLink
+                    className={cn(
+                      'h-4 w-4 shrink-0 mt-0.5 transition-opacity',
+                      enabled ? 'opacity-30 group-hover:opacity-80' : 'opacity-15'
+                    )}
+                  />
+                </div>
+                {!enabled && (
+                  <p className="mt-2 text-[11px] text-muted-foreground/60">
+                    {!hasHome ? 'Set your home city in Settings to enable' :
+                     !hasCity ? 'Set a trip destination to enable' :
+                                'Set trip dates to enable'}
+                  </p>
+                )}
+              </div>
+            )
+
+            if (!enabled) return <div key={platform.id}>{inner}</div>
+
+            return (
+              <a key={platform.id} href={url} target="_blank" rel="noopener noreferrer" className="block no-underline">
+                {inner}
+              </a>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Manual search cards */}
+      <div className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-0.5">
+          Open &amp; search manually
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {MANUAL_PLATFORMS.map((platform) => (
             <div
-              className={cn(
-                'group relative rounded-xl border bg-card p-4 transition-all duration-200',
-                'border-l-[3px]',
-                enabled
-                  ? 'hover:shadow-md hover:-translate-y-0.5'
-                  : 'opacity-60'
-              )}
+              key={platform.id}
+              className="rounded-xl border bg-card p-4 border-l-[3px] space-y-3"
               style={{ borderLeftColor: platform.color }}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                    <span className="text-lg leading-none">{platform.emoji}</span>
-                    <span className="font-semibold text-sm">{platform.name}</span>
-                    <span
-                      className="hidden sm:inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0"
-                      style={{ backgroundColor: `${platform.color}1a`, color: platform.color }}
-                    >
-                      {platform.badge}
-                    </span>
-                  </div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">{platform.tagline}</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{platform.description}</p>
-                </div>
-                <ExternalLink
-                  className={cn(
-                    'h-4 w-4 shrink-0 mt-0.5 transition-opacity',
-                    enabled ? 'opacity-30 group-hover:opacity-80' : 'opacity-15'
-                  )}
-                />
+              {/* Name row */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-lg leading-none">{platform.emoji}</span>
+                <span className="font-semibold text-sm">{platform.name}</span>
+                <span
+                  className="hidden sm:inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                  style={{ backgroundColor: `${platform.color}1a`, color: platform.color }}
+                >
+                  {platform.badge}
+                </span>
               </div>
 
-              {!enabled && (
-                <p className="mt-2 text-[11px] text-muted-foreground/60">
-                  {!hasHome  ? 'Set your home city in Settings to enable' :
-                   !hasCity  ? 'Set a trip destination to enable' :
-                               'Set trip dates to enable'}
-                </p>
+              {/* Copyable search info */}
+              {searchInfo ? (
+                <button
+                  onClick={() => copySearchInfo(platform.id)}
+                  className={cn(
+                    'w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition-colors',
+                    'bg-muted/60 hover:bg-muted border border-border/50'
+                  )}
+                  title="Click to copy search details"
+                >
+                  <span className="text-sm font-mono font-medium text-foreground truncate">
+                    {searchInfo}
+                  </span>
+                  {copiedId === platform.id
+                    ? <Check className="h-3.5 w-3.5 shrink-0 text-green-600" />
+                    : <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  }
+                </button>
+              ) : (
+                <p className="text-xs text-muted-foreground">{platform.description}</p>
               )}
+
+              {/* Open button */}
+              <div className="flex items-center gap-2">
+                <a
+                  href={platform.homepageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="no-underline"
+                >
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
+                    Open {platform.name}
+                    <ExternalLink className="h-3 w-3" />
+                  </Button>
+                </a>
+                {searchInfo && (
+                  <span className="text-[11px] text-muted-foreground">
+                    Search details shown above
+                  </span>
+                )}
+              </div>
             </div>
-          )
-
-          if (!enabled) return <div key={platform.id}>{inner}</div>
-
-          return (
-            <a
-              key={platform.id}
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block no-underline"
-            >
-              {inner}
-            </a>
-          )
-        })}
+          ))}
+        </div>
       </div>
 
       {/* Tips */}
