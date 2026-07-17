@@ -14,12 +14,9 @@ const enc = encodeURIComponent
 
 function buildUrls(city: string, country: string, startDate: string, endDate: string) {
   return {
-    booking:     `https://www.booking.com/searchresults.html?ss=${enc(city)}+${enc(country)}&checkin=${startDate}&checkout=${endDate}&group_adults=2`,
-    airbnb:      `https://www.airbnb.com/s/${enc(city)}--${enc(country)}/homes?checkin=${startDate}&checkout=${endDate}`,
-    google:      `https://www.google.com/travel/hotels/${enc(city)}?q=hotels+in+${enc(city)}&dates=${startDate}/${endDate}`,
-    expedia:     `https://www.expedia.com/Hotel-Search?destination=${enc(city)}+${enc(country)}&startDate=${startDate}&endDate=${endDate}`,
-    hotelscom:   `https://www.hotels.com/search.do?q-destination=${enc(city)}&q-check-in=${startDate}&q-check-out=${endDate}`,
-    hostelworld: `https://www.hostelworld.com/search?search_keywords=${enc(city)}&dateFrom=${startDate}&dateTo=${endDate}`,
+    booking: `https://www.booking.com/searchresults.html?ss=${enc(city)}+${enc(country)}&checkin=${startDate}&checkout=${endDate}&group_adults=2`,
+    airbnb:  `https://www.airbnb.com/s/${enc(city)}--${enc(country)}/homes?checkin=${startDate}&checkout=${endDate}`,
+    expedia: `https://www.expedia.com/Hotel-Search?destination=${enc(city)}+${enc(country)}&startDate=${startDate}&endDate=${endDate}`,
   }
 }
 
@@ -43,15 +40,6 @@ const PLATFORMS = [
     badge:       'Best for homes',
   },
   {
-    id:          'google',
-    name:        'Google Hotels',
-    tagline:     'Compare prices across all sites',
-    description: 'Search and compare hotel prices from dozens of booking sites at once.',
-    color:       '#4285F4',
-    emoji:       '🔍',
-    badge:       'Price comparison',
-  },
-  {
     id:          'expedia',
     name:        'Expedia',
     tagline:     'Bundle & save',
@@ -59,24 +47,6 @@ const PLATFORMS = [
     color:       '#E8A018',
     emoji:       '✈️',
     badge:       'Bundle deals',
-  },
-  {
-    id:          'hotelscom',
-    name:        'Hotels.com',
-    tagline:     'Earn free nights with every stay',
-    description: 'Rewards program: every 10 nights earns 1 free night automatically.',
-    color:       '#D03A2F',
-    emoji:       '⭐',
-    badge:       'Rewards program',
-  },
-  {
-    id:          'hostelworld',
-    name:        'Hostelworld',
-    tagline:     'Budget stays & hostels',
-    description: 'Best selection of hostels, guesthouses, and budget accommodation.',
-    color:       '#E8690B',
-    emoji:       '🎒',
-    badge:       'Budget friendly',
   },
 ]
 
