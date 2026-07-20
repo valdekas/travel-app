@@ -35,10 +35,20 @@ export async function GET(request: Request) {
     const supabase = await createClient()
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
     if (!exchangeError) {
-      // Mobile deep-link: redirect to custom scheme so the OS hands control
-      // back to the native app with the session already established.
       if (isMobileCallback) {
-        return NextResponse.redirect(safeNext)
+        // HTTP 3xx redirects are silently dropped for custom URI schemes by
+        // browsers/WebViews. An HTML page that sets window.location reliably
+        // triggers the OS deep-link handler instead.
+        const escaped = safeNext.replace(/"/g, '&quot;')
+        return new Response(
+          `<!DOCTYPE html><html><head>` +
+          `<meta http-equiv="refresh" content="0;url=${escaped}">` +
+          `</head><body>` +
+          `<script>window.location.href="${escaped}"</script>` +
+          `<p>Redirecting back to app…</p>` +
+          `</body></html>`,
+          { headers: { 'Content-Type': 'text/html' } },
+        )
       }
       return NextResponse.redirect(`${base}${safeNext}`)
     }
