@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-const MOBILE_SCHEME = 'travelappmobile://'
+// Recognised mobile deep-link schemes.
+// travelappmobile:// → production standalone build
+// exp://            → Expo Go during development
+function isMobileScheme(next: string): boolean {
+  return next.startsWith('travelappmobile://') || next.startsWith('exp://')
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
@@ -22,7 +27,7 @@ export async function GET(request: NextRequest) {
   const code    = searchParams.get('code')
   const rawNext = searchParams.get('next') ?? '/dashboard'
 
-  const isMobileCallback = rawNext.startsWith(MOBILE_SCHEME)
+  const isMobileCallback = isMobileScheme(rawNext)
 
   // MOBILE: do NOT exchange the code server-side — the server doesn't have the
   // PKCE verifier (only the native app does). Pass the code through as-is so
