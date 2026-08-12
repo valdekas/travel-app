@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { createClient } from '@/lib/supabase/server'
+import { createApiClient } from '@/lib/supabase/server'
 import { SUGGESTION_CATEGORIES } from '@/lib/types'
 import { searchTripAdvisorPlace } from '@/lib/utils/tripadvisor'
 
@@ -83,8 +83,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
   }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user } = await createApiClient(req)
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const { tripId, city, country, duration } = await req.json()

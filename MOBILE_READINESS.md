@@ -1,6 +1,6 @@
 # Mobile Readiness Audit — Travel Planner Pro
 
-**Date:** 2026-06-21  
+**Date:** 2026-06-21 (§ "API routes" and §12 below updated 2026-08-12 — the original audit's "exactly one API route" claim was outdated)  
 **Scope:** React Native readiness of the existing Supabase + Next.js backend  
 **Method:** Static code audit — no functionality changed  
 
@@ -21,6 +21,7 @@
 | 9. Supabase Storage — avatars bucket | ⚠️ Needs Work | Low (missing migration) |
 | 10. Storage utility coupling to browser client | ⚠️ Needs Work | Low (1 function refactor) |
 | 11. Environment variables / secrets | ✅ Ready | None |
+| 12. Custom API routes (`/api/*`) — mobile auth | ✅ Fixed 2026-08-12 | Was blocking mobile silently — see §12 |
 
 ---
 
@@ -92,9 +93,9 @@ All initial data reads are done in Next.js Server Components (files in `app/(das
 
 React Native doesn't have Server Components, but this is not a gap — it's a different rendering model. Mobile would simply call `supabase.from('trips').select('*')` directly from the device (client-side fetch). The same RLS policies apply. **No backend changes needed.**
 
-### API routes — ✅ Ready
+### API routes — ⚠️ this section was wrong; see §12
 
-There is exactly **one** API route: `app/(auth)/auth/callback/route.ts` (OAuth code exchange). All other data operations are direct Supabase SDK calls — there is no custom REST API layer, no Next.js Server Actions, and no service-role-key-dependent logic that mobile would need to replicate or proxy.
+This originally claimed "exactly one API route" (the OAuth callback) and "no backend changes needed." That was true on 2026-06-21 and is no longer true. Six custom `/api/*` route handlers exist as of 2026-08-12: `trips/fetch-hero`, `suggestions/generate`, `suggestions/search`, `checklist/suggestions`, `itinerary/auto-schedule`, and `recommendations`. Several of these are already called by the mobile client (confirmed via nginx access logs — `okhttp` user-agent hitting `fetch-hero`, `suggestions/generate`, and `itinerary/auto-schedule`). This is a real gap the original audit didn't anticipate — see §12 for what broke and how it was fixed.
 
 ### Business logic — ✅ Ready
 
@@ -225,6 +226,28 @@ There are **no server-only secrets** in this project — no `SUPABASE_SERVICE_RO
 
 ---
 
+## 12. Custom API Routes vs. Mobile Auth — ✅ Fixed 2026-08-12
+
+### What broke
+
+`middleware.ts` gates every non-static, non-`/auth`, non-`/` path behind a valid Supabase **cookie** session — including `/api/*`. That's fine for the browser (cookies are automatic) but the mobile client has no cookie jar (per §1, it authenticates with a JWT via `AsyncStorage`, not cookies). Every mobile request to a custom API route was silently redirected (`307`) to `/auth/login` before the route handler ever ran. Because `okhttp` (Android's HTTP client, used under React Native's `fetch`) follows redirects by default, this looked like a `200` from the mobile app's point of view — landing on the login page's HTML — while the actual endpoint logic (Google Places lookup, AI suggestion generation, etc.) silently never executed. No error surfaced anywhere: the API routes don't log, and the web call sites that invoke the same endpoints do so fire-and-forget with `.catch(() => {})`, so nothing checked the response either.
+
+Confirmed via nginx access logs: `fetch-hero`, `suggestions/generate`, and `itinerary/auto-schedule` all showed `307` responses for `okhttp`-tagged requests, alongside `200`s on `/auth/login` from the followed redirect.
+
+### The fix
+
+Three pieces, all in the web repo (no mobile-side change required beyond what §1 already specified — mobile just needs to send its Supabase access token):
+
+1. **`lib/supabase/middleware.ts`** — before falling back to the cookie check, look for an `Authorization: Bearer <token>` header and verify it against the Supabase Auth server (`getUser(token)`). A valid token lets the request through with no cookies touched. A missing or invalid token falls through to the original cookie-based flow unchanged — this only adds a path, it doesn't remove or alter the existing one.
+2. **`lib/supabase/server.ts` — `createApiClient(req)`** — a new helper alongside the existing (untouched) `createClient()`. Reads the same `Authorization` header; if present, builds a Supabase client with `global: { headers: { Authorization: 'Bearer <token>' } }` so every downstream `.from()` / `.storage` call carries the token too — verifying the token alone doesn't satisfy RLS, `auth.uid()` needs it on each request the client makes, not just the identity check. Falls back to the cookie-based `createClient()` when there's no bearer token. Returns `{ supabase, user }`, with `user` always coming from `getUser()` resolving the token/cookie — never from a client-supplied field.
+3. **API routes now 401, not redirect, on missing auth** — `middleware.ts` splits `/api/*` from page routes when there's no valid session: API routes get `NextResponse.json({ error: 'Not authenticated' }, { status: 401 })`, page routes keep the HTML redirect to `/auth/login`. This is what made the original failure invisible — a followed 307-to-login-page reads as success if nothing checks the final URL or body; a 401 doesn't.
+
+`app/api/trips/fetch-hero/route.ts` and `app/api/suggestions/generate/route.ts` were switched to `createApiClient(req)` (they're the two that do authenticated Supabase queries internally). `suggestions/search`, `checklist/suggestions`, and `itinerary/auto-schedule` don't call Supabase at all — they only needed the middleware fix to stop being redirected away.
+
+**Mobile-side requirement:** send `Authorization: Bearer <session.access_token>` on calls to these routes (`supabase.auth.getSession()` → `session.access_token`, refreshed automatically by the SDK per §1's `AsyncStorage` setup).
+
+---
+
 ## Prioritized Action List
 
 ### Do now (during web development — small, safe, applicable to web too)
@@ -256,12 +279,12 @@ There are **no server-only secrets** in this project — no `SUPABASE_SERVICE_RO
 
 ## Architecture Verdict
 
-The backend is in **very good shape** for eventual mobile reuse. The key reasons:
+The backend is in **good shape** for mobile reuse, with one correction to the original verdict: the "no backend changes needed" conclusion below assumed the app had no custom API layer. That stopped being true after this audit was written — see §12. The reasons that still hold:
 
 1. **No server-side business logic lock-in** — all logic is in portable `lib/utils/` functions
-2. **No service role key** — every operation is anon key + user JWT, identical to what mobile would use
+2. **No service role key** — every operation is anon key + user JWT, identical to what mobile would use, including the six `/api/*` routes now that they accept a bearer token (§12)
 3. **RLS is thorough and correct** — all 10 tables have user-scoped policies
 4. **Write path is already direct SDK calls** — the same call pattern used in React client components works in React Native
 5. **Two small actions now** (avatars migration + storage utility refactor) would eliminate the only meaningful coupling issues
 
-The only non-trivial work before mobile is the **Google Places API proxy** — this is the one area where the current browser-only SDK integration would need to be replaced with something platform-agnostic.
+The remaining non-trivial work before mobile is the **Google Places API proxy** (§4) — the current browser-only SDK integration would need to be replaced with something platform-agnostic. Any *future* `/api/*` route should be written with mobile in mind from the start (accept the bearer token via `createApiClient`) rather than assuming a cookie session, now that §12 established this is a real, actively-used calling pattern rather than a hypothetical.

@@ -1,6 +1,12 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+function getBearerToken(request: NextRequest): string | null {
+  const header = request.headers.get('authorization')
+  const match = header?.match(/^Bearer\s+(.+)$/i)
+  return match ? match[1] : null
+}
+
 export async function updateSession(request: NextRequest) {
   // Redirect raw-IP access to the configured site URL.
   // This prevents OAuth PKCE state cookie domain mismatches: if the user
@@ -24,12 +30,28 @@ export async function updateSession(request: NextRequest) {
   const isAuthRoute     = pathname.startsWith('/auth')
   const isCallbackRoute = pathname === '/auth/callback'
   const isPublicRoute   = pathname === '/'
+  const isApiRoute      = pathname.startsWith('/api/')
 
   // Skip session check entirely on the callback route — calling getUser() here
   // causes @supabase/ssr to clear stale auth cookies, wiping the PKCE
   // code_verifier before the route handler can call exchangeCodeForSession.
   if (isCallbackRoute) {
     return NextResponse.next({ request })
+  }
+
+  // Mobile/native clients have no cookie jar and authenticate with a Supabase
+  // access token instead. Verify it against the Auth server and let the
+  // request through. A missing or invalid token just falls through to the
+  // cookie-based check below, unchanged from before.
+  const bearerToken = getBearerToken(request)
+  if (bearerToken) {
+    const bearerSupabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll: () => [], setAll: () => {} } }
+    )
+    const { data: { user: bearerUser } } = await bearerSupabase.auth.getUser(bearerToken)
+    if (bearerUser) return NextResponse.next({ request })
   }
 
   let supabaseResponse = NextResponse.next({ request })
@@ -56,6 +78,9 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user && !isAuthRoute && !isPublicRoute) {
+    if (isApiRoute) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'
     return NextResponse.redirect(url)

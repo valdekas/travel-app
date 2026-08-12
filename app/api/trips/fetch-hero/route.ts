@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createApiClient } from '@/lib/supabase/server'
 
 async function fetchGooglePlacesHero(placeId: string): Promise<Buffer | null> {
   const key = process.env.GOOGLE_PLACES_API_KEY
@@ -31,8 +31,7 @@ async function fetchGooglePlacesHero(placeId: string): Promise<Buffer | null> {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user } = await createApiClient(req)
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const { tripId, placeId } = await req.json() as {
