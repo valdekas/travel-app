@@ -104,10 +104,12 @@ export async function POST(req: NextRequest) {
   const { tripId, city, country, duration } = await req.json()
   if (!tripId) return NextResponse.json({ error: 'tripId required' }, { status: 400 })
 
-  // Verify trip belongs to this user
+  // Verify trip belongs to this user. lat/lng/country come from here (not the
+  // request body) so TripAdvisor enrichment is verified against the trip's
+  // actual stored location, not whatever the client happened to send.
   const { data: trip } = await supabase
     .from('trips')
-    .select('id')
+    .select('id, lat, lng, country')
     .eq('id', tripId)
     .eq('user_id', user.id)
     .single()
@@ -220,7 +222,14 @@ export async function POST(req: NextRequest) {
   const enrichedRows: EnrichedRow[] = []
   for (const row of baseRows) {
     await delay(100)
-    const ta = await searchTripAdvisorPlace(row.name, city ?? '', country ?? '')
+    const ta = await searchTripAdvisorPlace({
+      name:     row.name,
+      city:     city ?? '',
+      country:  trip.country ?? country ?? '',
+      category: row.category,
+      tripLat:  trip.lat ?? null,
+      tripLng:  trip.lng ?? null,
+    })
     enrichedRows.push({
       ...row,
       ta_location_id: ta?.ta_location_id ?? null,
