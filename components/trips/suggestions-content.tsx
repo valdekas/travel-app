@@ -21,6 +21,19 @@ const TABS = [ALL_TAB, ...SUGGESTION_CATEGORIES]
 
 const COLLAPSED_COUNT = 5
 
+// Poll schedule while generating. Enrichment runs sequentially with up to 3
+// TripAdvisor calls per place, across up to 90 places on a cold-start
+// 6-category generation — realistically up to ~3 minutes, matching the
+// "~2-3 minutes" copy shown to the user. Fast cadence early (covers the
+// common case of a quick partial regeneration of just the missing
+// categories), backing off to a slower cadence for the long tail instead of
+// hammering refresh every 5s for 3 minutes straight.
+const POLL_DELAYS_MS = [
+  4000,
+  ...Array(11).fill(5000),   // attempts 2-12: 5s apart — covers up to ~59s
+  ...Array(12).fill(10000),  // attempts 13-24: 10s apart — extends to ~179s (~3 min)
+]
+
 function categoryToLocationType(cat: string) {
   const map: Record<string, string> = {
     Restaurants:      'restaurant',
@@ -184,8 +197,9 @@ function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding 
           <h3 className="font-semibold text-sm leading-snug text-foreground line-clamp-2 flex-1">{s.name}</h3>
         </div>
 
-        {/* Rating — TripAdvisor 1–5 scale */}
-        {s.rating != null && (
+        {/* Rating — TripAdvisor 1–5 scale, or an understated note when this
+            place hasn't been cross-checked against TripAdvisor at all */}
+        {s.rating != null ? (
           <div className="flex items-center gap-1.5">
             <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
             <span className="text-xs font-semibold text-foreground">{s.rating}</span>
@@ -195,6 +209,8 @@ function SuggestionCard({ suggestion: s, onAddToPlaces, onOpenDayPicker, adding 
               </span>
             )}
           </div>
+        ) : (
+          <p className="text-[11px] text-muted-foreground/60">Not on TripAdvisor</p>
         )}
 
         {/* Address */}
@@ -387,13 +403,16 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip.id])
 
-  // Only show suggestions that have been enriched with TripAdvisor data
-  const visibleSuggestions = suggestions.filter(s => s.photo_url && s.rating != null)
+  // Show every generated suggestion, not just TripAdvisor-enriched ones — a
+  // row that never matched TripAdvisor (common for small destinations) is
+  // still a real generated suggestion, and SuggestionCard already degrades
+  // cleanly without a photo/rating (see the "Not on TripAdvisor" label below).
+  const visibleSuggestions = suggestions
 
-  // Poll every 5s while generating
+  const [pollExhausted, setPollExhausted] = useState(false)
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null)
   const pollAttemptsRef = useRef(0)
-  const generating = suggestions.length === 0
+  const generating = suggestions.length === 0 && !pollExhausted
 
   useEffect(() => {
     if (!generating) {
@@ -403,13 +422,16 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
     pollAttemptsRef.current = 0
 
     function tick() {
-      if (pollAttemptsRef.current >= 12) return
+      const delay = POLL_DELAYS_MS[pollAttemptsRef.current]
+      if (delay === undefined) { setPollExhausted(true); return }
       pollAttemptsRef.current++
-      router.refresh()
-      pollTimerRef.current = setTimeout(tick, 5000)
+      pollTimerRef.current = setTimeout(() => {
+        router.refresh()
+        tick()
+      }, delay)
     }
 
-    pollTimerRef.current = setTimeout(tick, 4000)
+    tick()
     return () => { if (pollTimerRef.current) clearTimeout(pollTimerRef.current) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generating])
@@ -661,13 +683,9 @@ export function SuggestionsContent({ trip, initialSuggestions, itineraryDays }: 
                   <Sparkles className="h-7 w-7 text-muted-foreground/40" />
                 </div>
                 <div>
-                  <h2 className="font-semibold mb-1">
-                    {suggestions.length === 0 ? 'No suggestions yet' : 'Enrichment in progress'}
-                  </h2>
+                  <h2 className="font-semibold mb-1">No suggestions yet</h2>
                   <p className="text-sm text-muted-foreground max-w-xs">
-                    {suggestions.length === 0
-                      ? 'Suggestions are generated automatically for new trips. They may still be loading — try refreshing in a moment.'
-                      : 'Venue details are being fetched. Check back shortly.'}
+                    Suggestions are generated automatically for new trips. They may still be loading — try refreshing in a moment.
                   </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => router.refresh()}>
