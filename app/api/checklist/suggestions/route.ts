@@ -49,25 +49,45 @@ Rules:
 - "custom" category: destination-specific or activity-specific items
 - Respond ONLY with the JSON array — no markdown, no explanation`
 
-  try {
+  type RawSuggestion = { name?: string; category?: string; priority?: string; reason?: string }
+
+  async function requestSuggestions(): Promise<RawSuggestion[]> {
     const message = await anthropic.messages.create({
       model:      'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
+      max_tokens: 4096,
       messages:   [{ role: 'user', content: prompt }],
     })
 
     const raw   = message.content[0].type === 'text' ? message.content[0].text : '[]'
     const clean = raw.replace(/```json?\n?/g, '').replace(/```\n?/g, '').trim()
-    const suggestions = JSON.parse(clean)
+
+    try {
+      return JSON.parse(clean) as RawSuggestion[]
+    } catch (parseErr) {
+      console.error('[ChecklistSuggestions] JSON parse failed. Raw model output:', raw)
+      throw parseErr
+    }
+  }
+
+  try {
+    let suggestions: RawSuggestion[]
+    try {
+      suggestions = await requestSuggestions()
+    } catch (err) {
+      // Only retry a malformed/truncated JSON response — API/network errors
+      // shouldn't be blindly retried.
+      if (!(err instanceof SyntaxError)) throw err
+      suggestions = await requestSuggestions()
+    }
 
     // Validate and sanitise
     const valid = suggestions
-      .filter((s: { name?: string; category?: string; priority?: string; reason?: string }) =>
-        s.name && s.category && s.priority &&
+      .filter((s): s is Required<RawSuggestion> =>
+        !!s.name && !!s.category && !!s.priority &&
         ['documents', 'packing', 'custom'].includes(s.category) &&
         ['essential', 'recommended', 'optional'].includes(s.priority)
       )
-      .map((s: { name: string; category: string; priority: string; reason?: string }) => ({
+      .map(s => ({
         name:     String(s.name).trim(),
         category: s.category as 'documents' | 'packing' | 'custom',
         priority: s.priority as 'essential' | 'recommended' | 'optional',
