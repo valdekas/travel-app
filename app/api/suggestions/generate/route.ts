@@ -7,29 +7,28 @@ import { searchTripAdvisorPlace } from '@/lib/utils/tripadvisor'
 const CATEGORIES = SUGGESTION_CATEGORIES.map(c => c.key)
 
 const CATEGORY_FOCUS: Record<string, string> = {
-  Restaurants:      'Include a mix of iconic local institutions, Michelin-recommended or Michelin-listed spots, and neighborhood favorites with thousands of reviews. Prioritise places that appear in Time Out, Condé Nast Traveler, or Lonely Planet food guides for this city.',
-  Attractions:      'Include UNESCO World Heritage sites, major landmarks, and must-see spots that appear in every travel guide for this city. Prioritise places with the highest visitor numbers and review counts.',
-  Viewpoints:       'Include panoramic spots featured heavily in travel photography, Instagram, and city guide "best views" lists. These should be well-signposted, accessible locations known to most tourists.',
-  Museums:          'Include the most visited and renowned cultural, art, and history institutions. Prioritise places with permanent world-class collections that draw international visitors.',
-  Bars:             'Focus on hotel rooftop bars, well-known cocktail lounges, celebrated hotel bars, and bars that appear in major city guides like Time Out and Condé Nast. Include a mix of upscale hotel bars, iconic venues with a long history, and rooftop bars with strong review counts — avoid overly niche or underground venues that may not be indexed in major travel databases.',
-  'Parks & Nature': 'Include the most famous parks, botanical gardens, waterfronts, and natural landmarks that are go-to recreational spots for both locals and tourists. Prioritise places with high foot traffic and many reviews.',
+  Restaurants:      'Favor well-established local institutions and standout spots for the local cuisine. In a major city that means places known well beyond locals; in a small town, the best genuinely popular local restaurants are the right answer.',
+  Attractions:      'Favor landmarks and must-see spots for this specific place — major monuments and sites in a big city, or the town\'s defining sight(s) in a smaller one. Only list places you are reasonably confident actually exist there.',
+  Viewpoints:       'Favor scenic spots people actually go to for a view — a famous overlook in a big city, or simply the best vantage point available in a smaller town.',
+  Museums:          'Favor the most notable cultural, art, or history institutions this place actually has. Many small towns have none worth listing — that\'s fine, list fewer or none.',
+  Bars:             'Favor bars with real character and a solid local reputation — celebrated cocktail spots or hotel bars in a big city, or simply the town\'s best bar in a smaller one.',
+  'Parks & Nature': 'Favor parks, gardens, waterfronts, or natural landmarks genuinely worth visiting here, at whatever scale exists locally.',
 }
 
 function buildPrompt(category: string, destination: string): string {
   const isFood = category === 'Restaurants' || category === 'Bars'
   const categoryFocus = CATEGORY_FOCUS[category] ?? ''
-  return `You are a travel expert. Suggest exactly 15 ${category} in ${destination} that are:
-- Well-known and established (not new, obscure, or recently opened)
-- Highly rated and frequently reviewed on TripAdvisor, Google Maps, and major travel platforms
-- Actually located in the city itself (not nearby towns, suburbs, or day-trip destinations)
-- Popular among both locals and tourists, with a strong and consistent reputation
-- Likely to appear in major travel guides (Lonely Planet, Michelin, Time Out, Condé Nast Traveler)
+  return `You are a local travel expert. List the best ${category} actually in or immediately around ${destination} — real, currently-operating places you are confident exist.
+
+- Prioritise well-established, genuinely popular places over new or obscure ones
+- Stay within ${destination} itself, not other towns or day-trip destinations
+- ${destination} may be a small place — that's fine. List the best options that genuinely exist there, even if that means fewer than 15, or a mix of everyday local spots rather than internationally famous ones
+- Never invent a place, and never pad the list to hit a target count — a short, honest list beats a padded one
+- If you cannot confidently name any real ${category} for ${destination}, return an empty JSON array \`[]\` — do not write an explanation, apology, or any text instead
 
 ${categoryFocus}
 
-Focus on places with thousands of reviews and a strong online presence — these are the places travelers actually visit, photograph, and write about. Avoid small, niche, or hard-to-find venues that are unlikely to appear in travel databases.
-
-Return ONLY a valid JSON array — no markdown, no code fences, no explanation.
+Return up to 15 places, fewer if that's all you can confidently support. Return ONLY a valid JSON array — no markdown, no code fences, no explanation, no text before or after the array.
 Each item must have exactly these fields:
 - name: string (exact, well-known place name as it appears on TripAdvisor/Google Maps)
 - emoji: string (one relevant emoji)
@@ -55,25 +54,41 @@ interface ClaudeItem {
   tip?: string
 }
 
+// 'ok'    — at least one item generated
+// 'empty' — model responded (possibly with `[]`, possibly with a refusal/malformed
+//           reply) but no usable items came out of it — not a hard failure
+// 'error' — the Anthropic request itself failed (network, auth, rate limit, etc.)
+type GenerationStatus = 'ok' | 'empty' | 'error'
+
 async function generateForCategory(
   anthropic: Anthropic,
   category: string,
   destination: string,
-): Promise<ClaudeItem[]> {
+): Promise<{ items: ClaudeItem[]; status: GenerationStatus }> {
+  let text: string
   try {
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 6000,
       messages: [{ role: 'user', content: buildPrompt(category, destination) }],
     })
-    const text = message.content[0].type === 'text' ? message.content[0].text.trim() : '[]'
-    const clean = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/, '')
-    const items = JSON.parse(clean)
-    return Array.isArray(items) ? items.slice(0, 15) : []
+    text = message.content[0].type === 'text' ? message.content[0].text.trim() : '[]'
   } catch (error) {
-    console.error(`[Suggestions] Failed to generate ${category} for ${destination}:`, error)
-    return []
+    console.error(`[Suggestions] API error generating ${category} for ${destination}:`, error)
+    return { items: [], status: 'error' }
   }
+
+  const clean = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/, '')
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(clean)
+  } catch (error) {
+    console.error(`[Suggestions] Failed to parse ${category} for ${destination}:`, error, '\nRaw output:', text)
+    return { items: [], status: 'empty' }
+  }
+
+  const items = Array.isArray(parsed) ? parsed.slice(0, 15) : []
+  return { items, status: items.length > 0 ? 'ok' : 'empty' }
 }
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
@@ -141,10 +156,12 @@ export async function POST(req: NextRequest) {
 
   const baseRows: BaseRow[] = []
   const generatedCounts: Record<string, number> = {}
+  const categoryGenStatus: Record<string, GenerationStatus> = {}
 
   missingCategories.forEach((cat, idx) => {
-    const items = results[idx]
+    const { items, status } = results[idx]
     generatedCounts[cat] = items.length
+    categoryGenStatus[cat] = status
     for (const item of items) {
       if (!item.name) continue
       baseRows.push({
@@ -163,10 +180,6 @@ export async function POST(req: NextRequest) {
     }
   })
 
-  if (baseRows.length === 0) {
-    return NextResponse.json({ success: false, count: 0 })
-  }
-
   // Step 3: Enrich sequentially with 100 ms delay to respect TripAdvisor rate limits
   type EnrichedRow = BaseRow & {
     ta_location_id: string | null
@@ -180,6 +193,28 @@ export async function POST(req: NextRequest) {
     website: string | null
     phone: string | null
     price_level: string | null
+  }
+
+  // A category only reads as "ok" once it has a suggestion that survives the
+  // client's display filter (photo + rating) — that's the bar users actually
+  // see against. Short of that it's 'no_results' (we tried, found nothing
+  // verifiable) unless the Claude request itself hard-failed ('error').
+  function buildCategoriesReport(enriched: EnrichedRow[]) {
+    const report: Record<string, { status: 'ok' | 'no_results' | 'error'; count: number }> = {}
+    for (const cat of missingCategories) {
+      const visibleCount = enriched.filter(r => r.category === cat && r.photo_url && r.rating != null).length
+      report[cat] = {
+        status: visibleCount > 0 ? 'ok' : categoryGenStatus[cat] === 'error' ? 'error' : 'no_results',
+        count:  visibleCount,
+      }
+    }
+    return report
+  }
+
+  if (baseRows.length === 0) {
+    const categories = buildCategoriesReport([])
+    const overallStatus = Object.values(categoryGenStatus).every(s => s === 'error') ? 'error' : 'no_results'
+    return NextResponse.json({ success: false, count: 0, status: overallStatus, categories })
   }
 
   const enrichedRows: EnrichedRow[] = []
@@ -215,5 +250,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, count: enrichedRows.length, regenerated: missingCategories })
+  const categories = buildCategoriesReport(enrichedRows)
+  const statuses = Object.values(categories).map(c => c.status)
+  const overallStatus =
+    statuses.every(s => s === 'ok')       ? 'complete' :
+    statuses.some(s => s === 'ok')        ? 'partial'  :
+    statuses.every(s => s === 'error')    ? 'error'    :
+    'no_results'
+
+  return NextResponse.json({
+    success:     true,
+    count:       enrichedRows.length,
+    regenerated: missingCategories,
+    status:      overallStatus,
+    categories,
+  })
 }
