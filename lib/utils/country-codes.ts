@@ -108,6 +108,8 @@ export const NAME_TO_A2: Record<string, string> = {
   'canada': 'CA', 'mexico': 'MX', 'brazil': 'BR', 'argentina': 'AR',
   'colombia': 'CO', 'peru': 'PE', 'chile': 'CL', 'ecuador': 'EC',
   'australia': 'AU', 'new zealand': 'NZ', 'bali': 'ID', 'maldives': 'MV',
+  'malta': 'MT', 'cyprus': 'CY', 'lithuania': 'LT', 'latvia': 'LV', 'estonia': 'EE',
+  'luxembourg': 'LU', 'monaco': 'MC', 'andorra': 'AD', 'san marino': 'SM', 'liechtenstein': 'LI',
 }
 
 export function resolveA2(countryCode?: string, countryName?: string): string | null {

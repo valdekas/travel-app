@@ -45,7 +45,11 @@ function ensureGoogleMaps(): Promise<void> {
       resolve()
     }
     const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places&callback=${cbName}`
+    // language=en pinned explicitly — without it Google infers the language
+    // from the browser's locale, so a non-English browser gets localized
+    // address_components (e.g. "Мальта" instead of "Malta") written straight
+    // into trips.country and everywhere else this component is used.
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places&language=en&callback=${cbName}`
     script.async = true
     script.defer = true
     script.onerror = (e) => {

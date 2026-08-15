@@ -7,6 +7,7 @@ import { getDestinationImage } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { uploadCustomHeroImage, validateHeroImageFile } from '@/lib/utils/trip-hero-image'
 import { PlacesAutocomplete } from '@/components/ui/places-autocomplete'
+import { CountrySelect } from '@/components/ui/country-select'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -38,6 +39,7 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
   const [form, setForm] = useState({
     name: trip.name,
     country: trip.country,
+    country_code: trip.country_code ?? '',
     city: trip.city ?? '',
     place_id: trip.place_id ?? '',
     start_date: trip.start_date ?? '',
@@ -138,18 +140,19 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
       }
 
       const { error } = await supabase.from('trips').update({
-        name:        form.name,
-        country:     form.country,
-        city:        form.city || null,
-        place_id:    form.place_id || null,
-        start_date:  form.start_date || null,
-        end_date:    form.end_date || null,
-        budget:      parseFloat(form.budget) || 0,
-        currency:    form.currency,
-        notes:       form.notes || null,
-        status:      form.status,
-        is_planning: form.is_planning,
-        cover_photo: coverPhotoUrl || null,
+        name:         form.name,
+        country:      form.country,
+        country_code: form.country_code || null,
+        city:         form.city || null,
+        place_id:     form.place_id || null,
+        start_date:   form.start_date || null,
+        end_date:     form.end_date || null,
+        budget:       parseFloat(form.budget) || 0,
+        currency:     form.currency,
+        notes:        form.notes || null,
+        status:       form.status,
+        is_planning:  form.is_planning,
+        cover_photo:  coverPhotoUrl || null,
       }).eq('id', trip.id)
 
       if (error) throw error
@@ -193,7 +196,11 @@ export function EditTripDialog({ trip, glassMode }: EditTripDialogProps) {
           </div>
           <div className="space-y-1.5">
             <Label>Country</Label>
-            <Input value={form.country} onChange={e => set('country', e.target.value)} />
+            <CountrySelect
+              value={form.country_code}
+              onSelect={c => { set('country', c.name); set('country_code', c.code) }}
+              placeholder="Select country"
+            />
           </div>
           <div className="space-y-2">
             <Label>Travel Dates</Label>

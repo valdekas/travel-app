@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
   // actual stored location, not whatever the client happened to send.
   const { data: trip } = await supabase
     .from('trips')
-    .select('id, lat, lng, country')
+    .select('id, lat, lng, country, country_code')
     .eq('id', tripId)
     .eq('user_id', user.id)
     .single()
@@ -223,12 +223,13 @@ export async function POST(req: NextRequest) {
   for (const row of baseRows) {
     await delay(100)
     const ta = await searchTripAdvisorPlace({
-      name:     row.name,
-      city:     city ?? '',
-      country:  trip.country ?? country ?? '',
-      category: row.category,
-      tripLat:  trip.lat ?? null,
-      tripLng:  trip.lng ?? null,
+      name:        row.name,
+      city:        city ?? '',
+      country:     trip.country ?? country ?? '',
+      countryCode: trip.country_code ?? null,
+      category:    row.category,
+      tripLat:     trip.lat ?? null,
+      tripLng:     trip.lng ?? null,
     })
     enrichedRows.push({
       ...row,

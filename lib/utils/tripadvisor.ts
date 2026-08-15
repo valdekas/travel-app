@@ -4,6 +4,8 @@
 // a fully-rejected suggestion costs up to 4 (search + 3x details, no photos).
 // Sequential requests with 100 ms delay are used to avoid burst-rate rejection.
 
+import { resolveA2 } from './country-codes'
+
 const TA_API_KEY = process.env.TRIPADVISOR_API_KEY
 const TA_BASE     = 'https://api.content.tripadvisor.com/api/v1'
 
@@ -44,13 +46,20 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 
 // Verifies a TA details result is plausibly in the right place before we
 // trust its rating/photo/address. Prefers an actual distance check (accurate
-// regardless of country-name formatting); falls back to a country-string
-// compare when coordinates aren't available on one side; fails safe
-// (rejects) if neither can be checked — an unverifiable match must not be
-// attached.
+// regardless of country-name formatting); falls back to comparing ISO2
+// country codes — via resolveA2, not a raw string compare — when
+// coordinates aren't available on one side. trips.country can be a
+// localized name (e.g. "Мальта" for a Russian-locale browser, since Google
+// Places returns country long_name in the requesting browser's language),
+// which would never string-match TripAdvisor's English address_obj.country
+// and would silently reject every candidate; resolving both sides to ISO2
+// first is immune to that. Fails safe (rejects) if neither coordinates nor
+// a resolvable country are available on both sides — an unverifiable match
+// must not be attached.
 function isGeographicMatch(
   details: { latitude?: string; longitude?: string; address_obj?: { country?: string } },
-  tripCountry: string,
+  tripCountryCode: string | null,
+  tripCountryName: string,
   tripLat: number | null,
   tripLng: number | null,
 ): { ok: boolean; reason?: string } {
@@ -65,10 +74,13 @@ function isGeographicMatch(
     return { ok: true }
   }
 
-  const candCountry = details.address_obj?.country?.trim()
-  if (tripCountry && candCountry) {
-    if (candCountry.toLowerCase() !== tripCountry.trim().toLowerCase()) {
-      return { ok: false, reason: `wrong country (got "${candCountry}", expected "${tripCountry}")` }
+  const candCountryName = details.address_obj?.country?.trim()
+  const tripISO2 = resolveA2(tripCountryCode ?? undefined, tripCountryName)
+  const candISO2 = resolveA2(undefined, candCountryName)
+
+  if (tripISO2 && candISO2) {
+    if (tripISO2 !== candISO2) {
+      return { ok: false, reason: `wrong country (got "${candCountryName}" [${candISO2}], expected [${tripISO2}])` }
     }
     return { ok: true }
   }
@@ -95,16 +107,18 @@ export async function searchTripAdvisorPlace({
   name,
   city,
   country,
+  countryCode,
   category,
   tripLat,
   tripLng,
 }: {
-  name:     string
-  city:     string
-  country:  string
-  category: string
-  tripLat:  number | null
-  tripLng:  number | null
+  name:        string
+  city:        string
+  country:     string
+  countryCode: string | null
+  category:    string
+  tripLat:     number | null
+  tripLng:     number | null
 }): Promise<TripAdvisorPlace | null> {
   if (!TA_API_KEY) return null
 
@@ -155,7 +169,7 @@ export async function searchTripAdvisorPlace({
         continue
       }
 
-      const geo = isGeographicMatch(details, country, tripLat, tripLng)
+      const geo = isGeographicMatch(details, countryCode, country, tripLat, tripLng)
       if (!geo.ok) {
         console.log(`[TA] Rejected "${details.name}" for ${logCtx} — reason: ${geo.reason}`)
         continue
